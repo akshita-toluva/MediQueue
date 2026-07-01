@@ -22,4 +22,9 @@ public class RegisterRequest {
     @NotNull
     private Role role;
 
+    private String department;
+
+    private Integer avgConsultationTime;
+
+
 }
