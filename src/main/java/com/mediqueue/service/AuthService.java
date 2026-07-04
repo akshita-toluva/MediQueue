@@ -53,4 +53,25 @@ public class AuthService {
                     .user(user)
                     .department(request.getDepartment())
                     .available(true)
-                    .avgConsul
+                    .avgConsultationTime(request.getAvgConsultationTime())
+                    .build();
+            doctorRepository.save(doctor);
+        }
+        String token=jwtUtil.generateToken(user);
+        return new AuthResponse(token,user.getRole().name(), user.getName());
+    }
+
+    public AuthResponse login(LoginRequest request)
+    {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),request.getPassword())
+        );
+
+        User user=(User) userRepository.findByEmail(request.getEmail())
+                .orElseThrow(()->new RuntimeException("User not found"));
+
+        String token=jwtUtil.generateToken(user);
+        return new AuthResponse(token,user.getRole().name(), user.getName());
+    }
+}

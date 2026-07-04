@@ -18,3 +18,13 @@ public class RegisterRequest {
 
     @NotBlank
     private String password;
+
+    @NotNull
+    private Role role;
+
+    private String department;
+
+    private Integer avgConsultationTime;
+
+
+}
