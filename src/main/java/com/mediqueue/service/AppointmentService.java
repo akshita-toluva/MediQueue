@@ -1,18 +1,16 @@
 package com.mediqueue.service;
 
+import com.mediqueue.dsaLayer.MinHeap;
 import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
-import com.mediqueue.entity.Appointment;
-import com.mediqueue.entity.AppointmentStatus;
-import com.mediqueue.entity.Doctor;
-import com.mediqueue.entity.User;
+import com.mediqueue.entity.*;
 import com.mediqueue.repository.AppointmentRepository;
 import com.mediqueue.repository.DoctorRepository;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import javax.print.Doc;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,7 +44,34 @@ public class AppointmentService {
                 .build();
 
         Appointment saved=appointmentRepository.save(appointment);
-        return mapToResponse(saved);
+
+        recalculateQueue(doctor.getId());
+
+        Appointment refreshed=appointmentRepository.findById(saved.getId())
+                .orElseThrow(()->new RuntimeException("Appointment not found after save"));
+
+        return mapToResponse(refreshed);
+    }
+
+    private void recalculateQueue(Long doctorId) {
+        List<Appointment> pending=appointmentRepository.findByDoctorIdAndStatus(doctorId,AppointmentStatus.PENDING);
+
+        Comparator<Appointment> queueOrder=Comparator
+                .comparing((Appointment a ) ->a.getPriority() == Priority.EMERGENCY ? 0 : 1)
+                .thenComparing(Appointment :: getBookedAt);
+
+        MinHeap<Appointment> heap=new MinHeap<>(queueOrder);
+        pending.forEach(heap::insert);
+
+        int position=1;
+        List<Appointment> ordered=new ArrayList<>();
+        while(!heap.isEmpty())
+        {
+            Appointment next=heap.extractMin();
+            next.setQueuePosition(position++);
+            ordered.add(next);
+        }
+        appointmentRepository.saveAll(ordered);
     }
 
     public List<AppointmentResponse> getMyAppointments(User patient)
