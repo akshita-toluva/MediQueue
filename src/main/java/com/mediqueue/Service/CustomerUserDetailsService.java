@@ -1,4 +1,4 @@
-package com.mediqueue.service;
+package com.mediqueue.Service;
 
 import com.mediqueue.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

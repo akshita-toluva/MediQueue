@@ -1,16 +1,15 @@
-# MediQueue - AI-Powered Smart Hospital OPD Management System
+# MediQueue — Hospital OPD Queue Management System
 
-A full-stack hospital OPD queue management system with real-time updates, AI-predicted wait times, and emergency case prioritization.
+A full-stack hospital OPD queue management system with real-time updates,role-based booking , emergency case prioritization ,and wait-time estimation.
 
 ## Tech Stack
 - Backend: Java 21, Spring Boot 3.3.5, Spring Security, JWT, PostgreSQL
-- Frontend: React, TailwindCSS (coming soon)
-- AI: Groq API (LLaMA 3) + Gemini API fallback
+- Frontend: React, TailwindCSS 
+- Database: PostgreSQL (Spring Data JPA / Hibernate)
 - Real-time: WebSockets
 
 ## Features
 - 3-role JWT auth (Patient, Doctor, Admin)
-- AI-predicted wait times
 - Emergency case prioritization (Min-Heap)
 - Live queue updates via WebSockets
 - Admin analytics dashboard

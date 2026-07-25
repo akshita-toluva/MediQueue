@@ -14,6 +14,6 @@ public class AppointmentRequest {
     @NotBlank(message = "Department is required")
     private String department;
 
-    @NotNull(message = "Priority is required")
-    private Priority priority;
+    @NotBlank(message = "Please describe your symptoms")
+    private String symptomDescription;
 }

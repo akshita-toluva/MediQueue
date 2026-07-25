@@ -3,7 +3,7 @@ package com.mediqueue.controller;
 import com.mediqueue.dto.AuthResponse;
 import com.mediqueue.dto.LoginRequest;
 import com.mediqueue.dto.RegisterRequest;
-import com.mediqueue.service.AuthService;
+import com.mediqueue.Service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

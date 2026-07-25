@@ -1,6 +1,6 @@
 package com.mediqueue.Filter;
 
-import com.mediqueue.service.CustomerUserDetailsService;
+import com.mediqueue.Service.CustomerUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,18 +31,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request,response);
             return;
         }
-        final String jwt=authHeader.substring(7);
-        final String userEmail=jwtUtil.extractUsername(jwt);
-
-        if(userEmail!=null && SecurityContextHolder.getContext().getAuthentication()==null) {
-            UserDetails userDetails = customerUserDetailsService.loadUserByUsername(userEmail);
-
-            if (jwtUtil.isTokenValid(jwt,userDetails)){
-                UsernamePasswordAuthenticationToken authToken=new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
-                authToken.setDetails(new
-                        WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+        final String jwt = authHeader.substring(7);
+        try {
+            final String userEmail = jwtUtil.extractUsername(jwt);
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = customerUserDetailsService.loadUserByUsername(userEmail);
+                if (jwtUtil.isTokenValid(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (io.jsonwebtoken.JwtException ex) {
         }
         filterChain.doFilter(request,response);
     }

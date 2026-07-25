@@ -3,9 +3,9 @@ package com.mediqueue.controller;
 import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
 import com.mediqueue.entity.Doctor;
+import com.mediqueue.entity.Priority;
 import com.mediqueue.entity.User;
-import com.mediqueue.repository.UserRepository;
-import com.mediqueue.service.AppointmentService;
+import com.mediqueue.Service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import javax.print.Doc;
 import java.util.List;
 
 @RestController
@@ -28,7 +27,6 @@ public class AppointmentController {
     public ResponseEntity<AppointmentResponse> bookAppointment(
             @Valid @RequestBody AppointmentRequest request,
             @AuthenticationPrincipal User currentUser) {
-
         return ResponseEntity.ok(appointmentService.bookAppointment(request,currentUser));
     }
 
@@ -49,4 +47,13 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.getAvailableDoctors());
     }
 
+    //rule classified priority
+    @PatchMapping("/appointments/{id}/priority")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public ResponseEntity<AppointmentResponse> overridePriority(
+            @PathVariable Long id,
+            @RequestParam Priority priority,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(appointmentService.overridePriority(id, priority, currentUser));
+    }
 }
