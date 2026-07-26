@@ -18,10 +18,12 @@ public class WaitTimeEstimationService {
             "cannot breathe"
     );
 
-    public int predictWaitTime(int patientsAhead, int avgConsultationTime, List<Integer> recentActualWaitTimes) {
+    public int predictWaitTime(int patientsAhead, int avgConsultationTime, List<Integer> recentActualWaitTimes,double noShowRate) {
         if (recentActualWaitTimes == null || recentActualWaitTimes.isEmpty()) {
             // Cold start: no completed-consultation history for this doctor yet
-            return patientsAhead * avgConsultationTime;
+            //Move patients ahead by doctors no-show rate
+            int expectedPatientsAhead=(int)Math.round(patientsAhead*(1-noShowRate));
+            return expectedPatientsAhead * avgConsultationTime;
         }
         return recencyWeightedAverage(recentActualWaitTimes);
     }

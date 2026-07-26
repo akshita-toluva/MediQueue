@@ -2,9 +2,8 @@ package com.mediqueue.controller;
 
 import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
-import com.mediqueue.entity.Doctor;
-import com.mediqueue.entity.Priority;
-import com.mediqueue.entity.User;
+import com.mediqueue.dto.QueueStatusResponse;
+import com.mediqueue.entity.*;
 import com.mediqueue.Service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,5 +54,22 @@ public class AppointmentController {
             @RequestParam Priority priority,
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(appointmentService.overridePriority(id, priority, currentUser));
+    }
+
+    @PatchMapping("/appointments/{id}/resolve")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public ResponseEntity<AppointmentResponse> resolveAppointment(
+            @PathVariable Long id,
+            @RequestParam AppointmentStatus outcome,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(appointmentService.resolveAppointment(id,outcome,currentUser));
+    }
+
+    @GetMapping("/appointments/{id}/queue-status")
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
+    public ResponseEntity<QueueStatusResponse> getQueueStatus(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser){
+        return ResponseEntity.ok(appointmentService.getQueueStatus(id,currentUser));
     }
 }
