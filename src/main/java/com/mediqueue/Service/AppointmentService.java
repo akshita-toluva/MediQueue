@@ -1,4 +1,5 @@
 package com.mediqueue.Service;
+import com.mediqueue.dsaLayer.HashMapDoctorCache;
 import com.mediqueue.dsaLayer.MinHeap;
 import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
@@ -11,6 +12,7 @@ import com.mediqueue.repository.PriorityAuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,12 +28,22 @@ public class AppointmentService {
     private final WaitTimeEstimationService waitTimeEstimationService;
     private final PriorityAuditLogRepository priorityAuditLogRepository;
     private final NoShowTrackerService noShowTrackerService;
+    private final HashMapDoctorCache doctorAvailabilityCache;
+
 
     @Transactional
     public AppointmentResponse bookAppointment(AppointmentRequest request, User patient) {
         Doctor doctor = doctorRepository.findByIdForUpdate(request.getDoctorId())
                 .orElseThrow(() -> new RuntimeException("Doctor Not Found"));
-        if (!doctor.isAvailable()) {
+
+        Boolean available = doctorAvailabilityCache.get(doctor.getId());
+        if(available==null)
+        {
+            available = doctor.isAvailable();
+            doctorAvailabilityCache.put(doctor.getId(), available);
+        }
+
+        if (!available) {
             throw new RuntimeException("Doctor is not available");
         }
         Priority priority = waitTimeEstimationService.classifyPriority(request.getSymptomDescription());
@@ -62,6 +74,23 @@ public class AppointmentService {
                 .build();
         queueRepository.save(queueEntry);
         return mapToResponse(refreshed);
+    }
+
+    @Transactional
+    public Doctor updateAvailability(Long doctorId,boolean available,User staff)
+    {
+        if(staff.getRole()!=Role.DOCTOR && staff.getRole()!= Role.ADMIN)
+        {
+            throw new RuntimeException("Only a doctor or admin can change availability");
+        }
+
+        Doctor doctor=doctorRepository.findByIdForUpdate(doctorId)
+                .orElseThrow(()->new RuntimeException("Doctor not found"));
+
+        doctor.setAvailable(available);
+        Doctor saved=doctorRepository.save(doctor);
+        doctorAvailabilityCache.put(doctorId,available);
+        return saved;
     }
 
     @Transactional

@@ -72,4 +72,13 @@ public class AppointmentController {
             @AuthenticationPrincipal User currentUser){
         return ResponseEntity.ok(appointmentService.getQueueStatus(id,currentUser));
     }
+
+    @PatchMapping("/doctors/{id}/availability")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public ResponseEntity<Doctor> updateAvailability(
+            @PathVariable Long id,
+            @RequestParam boolean available,
+            @AuthenticationPrincipal User currentUser){
+        return ResponseEntity.ok(appointmentService.updateAvailability(id, available, currentUser));
+    }
 }
