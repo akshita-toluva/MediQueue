@@ -12,6 +12,8 @@ import com.mediqueue.repository.PriorityAuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
+import jakarta.annotation.PostConstruct;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -29,7 +31,13 @@ public class AppointmentService {
     private final PriorityAuditLogRepository priorityAuditLogRepository;
     private final NoShowTrackerService noShowTrackerService;
     private final HashMapDoctorCache doctorAvailabilityCache;
+    private final DepartmentAvailabilityCache departmentAvailabilityCache;
 
+    @PostConstruct
+    public void warmDepartmentAvailabilityCache() {
+        doctorRepository.findByAvailableTrue()
+                .forEach(d -> departmentAvailabilityCache.markAvailable(d.getDepartment(), d.getId()));
+    }
 
     @Transactional
     public AppointmentResponse bookAppointment(AppointmentRequest request, User patient) {
@@ -87,9 +95,22 @@ public class AppointmentService {
         Doctor doctor=doctorRepository.findByIdForUpdate(doctorId)
                 .orElseThrow(()->new RuntimeException("Doctor not found"));
 
+        if (staff.getRole() == Role.DOCTOR && !doctor.getUser().getId().equals(staff.getId())) {
+            throw new RuntimeException("You are not authorised to change this doctor's availability");
+        }
+
         doctor.setAvailable(available);
         Doctor saved=doctorRepository.save(doctor);
         doctorAvailabilityCache.put(doctorId,available);
+
+        if(available)
+        {
+            departmentAvailabilityCache.markAvailable(doctor.getDepartment(),doctorId);
+        }
+        else
+        {
+            departmentAvailabilityCache.markUnavailable(doctor.getDepartment(),doctorId);
+        }
         return saved;
     }
 
@@ -100,6 +121,10 @@ public class AppointmentService {
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
         doctorRepository.findByIdForUpdate(appointment.getDoctor().getId())
                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        if (changedBy.getRole() == Role.DOCTOR &&
+                !appointment.getDoctor().getUser().getId().equals(changedBy.getId())) {
+            throw new RuntimeException("You are not authorised to modify this appointment");
+        }
         Priority oldPriority = appointment.getPriority();
         // Skip logging/recalculating on a no-op PATCH (same value re-submitted) -
         // an audit trail should record actual changes, not repeated confirmations
@@ -154,6 +179,10 @@ public class AppointmentService {
         }
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
+        if (staff.getRole() == Role.DOCTOR &&
+                !appointment.getDoctor().getUser().getId().equals(staff.getId())) {
+            throw new RuntimeException("You are not authorised to resolve this appointment");
+        }
         appointment.setStatus(outcome);
         appointmentRepository.save(appointment);
         if (outcome == AppointmentStatus.NO_SHOW) {
@@ -207,11 +236,13 @@ public class AppointmentService {
     }
 
     public List<Doctor> getAvailableDoctors() {
-        return doctorRepository.findByAvailableTrue();
+        List<Long> ids = departmentAvailabilityCache.getAllAvailableDoctorIds();
+        return doctorRepository.findAllById(ids);
     }
 
     public List<Doctor> getAvailableDoctorsByDepartment(String department) {
-        return doctorRepository.findByDepartmentAndAvailableTrue(department);
+        List<Long> ids = departmentAvailabilityCache.getAvailableDoctorIds(department);
+        return doctorRepository.findAllById(ids);
     }
 
     private AppointmentResponse mapToResponse(Appointment appointment) {

@@ -58,10 +58,15 @@ public class SlidingWindowNoShowTracker {
         }
     }
 
-    public double getNoShowRate(Long doctorId)
+    public synchronized double getNoShowRate(Long doctorId)
     {
         Deque<Event> window= windows.get(doctorId);
         if(window==null || window.isEmpty())
+        {
+            return 0.0;
+        }
+        evictExpired(doctorId,LocalDate.now());
+        if(window.isEmpty())
         {
             return 0.0;
         }
@@ -69,7 +74,7 @@ public class SlidingWindowNoShowTracker {
         return (double)noShows/ window.size();
     }
 
-    public int getSampleSize(Long doctorId)
+    public synchronized int getSampleSize(Long doctorId)
     {
         Deque<Event> window=windows.get(doctorId);
         return window == null ? 0 : window.size();
