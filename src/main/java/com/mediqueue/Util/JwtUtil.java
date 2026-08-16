@@ -1,4 +1,4 @@
-package com.mediqueue.util;
+package com.mediqueue.Util;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

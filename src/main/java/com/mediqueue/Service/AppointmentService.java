@@ -157,6 +157,12 @@ public class AppointmentService {
             throw new RuntimeException("You are not authorised to view this appointment");
         }
 
+        //A patient can only see their own appointment's queue status; a doctor can only see their own patients'.
+        if(requester.getRole()==Role.DOCTOR && !appointment.getDoctor().getUser().getId().equals(requester.getId()))
+        {
+            throw new RuntimeException("You are not authorised to view this appointment");
+        }
+
         QueueEntry queueEntry=queueRepository.findByAppointmentId(appointmentId)
                 .orElseThrow(()->new RuntimeException("Queue entry not found for this appointment"));
 
