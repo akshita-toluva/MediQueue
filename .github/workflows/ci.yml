@@ -47,3 +47,6 @@ jobs:
           distribution: 'temurin'
       - name: Build and run tests
         run: mvn -B test
+
+JWT_SECRET: ci-test-jwt-secret-must-be-at-least-256-bits-long-for-hs256
+JWT_EXPIRATION: 86400000
