@@ -38,6 +38,8 @@ jobs:
       SPRING_DATASOURCE_USERNAME: ci_user
       SPRING_DATASOURCE_PASSWORD: ci_password
       MEDIQUEUE_ADMIN_BOOTSTRAP_SECRET: ci-test-secret-not-real
+      JWT_SECRET: ci-test-jwt-secret-must-be-at-least-256-bits-long-for-hs256
+      JWT_EXPIRATION: 86400000
 
     steps:
       - uses: actions/checkout@v4
@@ -48,5 +50,3 @@ jobs:
       - name: Build and run tests
         run: mvn -B test
 
-JWT_SECRET: ci-test-jwt-secret-must-be-at-least-256-bits-long-for-hs256
-JWT_EXPIRATION: 86400000
