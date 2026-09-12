@@ -62,4 +62,10 @@ public class JwtUtil {
                 .getPayload();
         return claimsResolver.apply(claims);
     }
+
+    public long getRemainingValidityMillis(String token) {
+        Date expiration = extractExpiration(token);
+        return expiration.getTime() - System.currentTimeMillis();
+    }
+
 }

@@ -5,6 +5,9 @@ import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
 import com.mediqueue.dto.QueueStatusResponse;
 import com.mediqueue.entity.*;
+import com.mediqueue.exception.ConflictException;
+import com.mediqueue.exception.ResourceNotFoundException;
+import com.mediqueue.exception.UnauthorizedActionException;
 import com.mediqueue.repository.AppointmentRepository;
 import com.mediqueue.repository.DoctorRepository;
 import com.mediqueue.repository.QueueRepository;
@@ -14,6 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
 import jakarta.annotation.PostConstruct;
+import java.util.Map;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -21,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class AppointmentService {
@@ -32,6 +39,7 @@ public class AppointmentService {
     private final NoShowTrackerService noShowTrackerService;
     private final HashMapDoctorCache doctorAvailabilityCache;
     private final DepartmentAvailabilityCache departmentAvailabilityCache;
+    private final QueueBroadcastService queueBroadcastService;
 
     @PostConstruct
     public void warmDepartmentAvailabilityCache() {
@@ -42,7 +50,7 @@ public class AppointmentService {
     @Transactional
     public AppointmentResponse bookAppointment(AppointmentRequest request, User patient) {
         Doctor doctor = doctorRepository.findByIdForUpdate(request.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor Not Found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor Not Found"));
 
         Boolean available = doctorAvailabilityCache.get(doctor.getId());
         if(available==null)
@@ -52,7 +60,7 @@ public class AppointmentService {
         }
 
         if (!available) {
-            throw new RuntimeException("Doctor is not available");
+            throw new ConflictException("Doctor is not available");
         }
         Priority priority = waitTimeEstimationService.classifyPriority(request.getSymptomDescription());
         int queuePosition = appointmentRepository.countByDoctorIdAndStatus(
@@ -60,7 +68,7 @@ public class AppointmentService {
         Appointment appointment = Appointment.builder()
                 .patient(patient)
                 .doctor(doctor)
-                .department(request.getDepartment())
+                .department(doctor.getDepartment())
                 .priority(priority)
                 .status(AppointmentStatus.PENDING)
                 .queuePosition(queuePosition)
@@ -89,14 +97,14 @@ public class AppointmentService {
     {
         if(staff.getRole()!=Role.DOCTOR && staff.getRole()!= Role.ADMIN)
         {
-            throw new RuntimeException("Only a doctor or admin can change availability");
+            throw new UnauthorizedActionException("Only a doctor or admin can change availability");
         }
 
         Doctor doctor=doctorRepository.findByIdForUpdate(doctorId)
-                .orElseThrow(()->new RuntimeException("Doctor not found"));
+                .orElseThrow(()->new ResourceNotFoundException("Doctor not found"));
 
         if (staff.getRole() == Role.DOCTOR && !doctor.getUser().getId().equals(staff.getId())) {
-            throw new RuntimeException("You are not authorised to change this doctor's availability");
+            throw new UnauthorizedActionException("You are not authorised to change this doctor's availability");
         }
 
         doctor.setAvailable(available);
@@ -118,12 +126,12 @@ public class AppointmentService {
     public AppointmentResponse overridePriority(Long appointmentId, Priority newPriority, User
             changedBy) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
         doctorRepository.findByIdForUpdate(appointment.getDoctor().getId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
         if (changedBy.getRole() == Role.DOCTOR &&
                 !appointment.getDoctor().getUser().getId().equals(changedBy.getId())) {
-            throw new RuntimeException("You are not authorised to modify this appointment");
+            throw new UnauthorizedActionException("You are not authorised to modify this appointment");
         }
         Priority oldPriority = appointment.getPriority();
         // Skip logging/recalculating on a no-op PATCH (same value re-submitted) -
@@ -149,22 +157,22 @@ public class AppointmentService {
     public QueueStatusResponse getQueueStatus(Long appointmentId,User requester)
     {
         Appointment appointment=appointmentRepository.findById(appointmentId)
-                .orElseThrow(()->new RuntimeException("Appointment not found"));
+                .orElseThrow(()->new ResourceNotFoundException("Appointment not found"));
 
         //A patient can only see their own appointment's queue status; doctors/admins can see any.
         if(requester.getRole()==Role.PATIENT && !appointment.getPatient().getId().equals(requester.getId()))
         {
-            throw new RuntimeException("You are not authorised to view this appointment");
+            throw new UnauthorizedActionException("You are not authorised to view this appointment");
         }
 
         //A patient can only see their own appointment's queue status; a doctor can only see their own patients'.
         if(requester.getRole()==Role.DOCTOR && !appointment.getDoctor().getUser().getId().equals(requester.getId()))
         {
-            throw new RuntimeException("You are not authorised to view this appointment");
+            throw new UnauthorizedActionException("You are not authorised to view this appointment");
         }
 
         QueueEntry queueEntry=queueRepository.findByAppointmentId(appointmentId)
-                .orElseThrow(()->new RuntimeException("Queue entry not found for this appointment"));
+                .orElseThrow(()->new ResourceNotFoundException("Queue entry not found for this appointment"));
 
         return QueueStatusResponse.builder()
                 .appointmentId(appointment.getId())
@@ -184,10 +192,10 @@ public class AppointmentService {
             throw new IllegalArgumentException("Outcome must be COMPLETED or NO_SHOW");
         }
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
         if (staff.getRole() == Role.DOCTOR &&
                 !appointment.getDoctor().getUser().getId().equals(staff.getId())) {
-            throw new RuntimeException("You are not authorised to resolve this appointment");
+            throw new UnauthorizedActionException("You are not authorised to resolve this appointment");
         }
         appointment.setStatus(outcome);
         appointmentRepository.save(appointment);
@@ -232,6 +240,32 @@ public class AppointmentService {
             ordered.add(next);
         }
         appointmentRepository.saveAll(ordered);
+
+        List<Long> orderedIds = ordered.stream().map(Appointment::getId).collect(Collectors.toList());
+        Map<Long, Integer> waitTimeByAppointmentId = queueRepository.findByAppointmentIdIn(orderedIds)
+                .stream()
+                .collect(Collectors.toMap(qe -> qe.getAppointment().getId(), QueueEntry::getEstimatedWaitTime));
+
+        Runnable broadcast = () -> {
+            for (Appointment appointment : ordered) {
+                queueBroadcastService.broadcastQueueUpdate(
+                        appointment, waitTimeByAppointmentId.get(appointment.getId()));
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive())
+        {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
+            {
+                @Override
+                public void afterCommit() {
+                    broadcast.run();
+                }
+            });
+        }
+        else {
+            broadcast.run();
+        }
     }
 
     public List<AppointmentResponse> getMyAppointments(User patient) {

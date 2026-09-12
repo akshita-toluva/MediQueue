@@ -1,10 +1,12 @@
 package com.mediqueue.Service;
 
+import com.mediqueue.dsaLayer.TokenBlocklistService;
 import com.mediqueue.dto.AdminCreatedUserResponse;
 import com.mediqueue.dto.AuthResponse;
 import com.mediqueue.dto.LoginRequest;
 import com.mediqueue.dto.RegisterRequest;
 import com.mediqueue.entity.User;
+import com.mediqueue.exception.UnauthorizedActionException;
 import com.mediqueue.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +20,7 @@ import com.mediqueue.entity.Role;
 import com.mediqueue.repository.DoctorRepository;
 import org.springframework.transaction.annotation.Transactional;
 import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
+import com.mediqueue.exception.ConflictException;
 
 
 @Service
@@ -29,13 +32,14 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final DoctorRepository doctorRepository;
     private final DepartmentAvailabilityCache departmentAvailabilityCache;
+    private final TokenBlocklistService tokenBlocklistService;
     @Value("${mediqueue.admin.bootstrap-secret}")
     private String bootstrapSecret;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (request.getRole() == Role.ADMIN) {
-            throw new RuntimeException("ADMIN accounts cannot be self-registered");
+        if (request.getRole() == Role.ADMIN || request.getRole() == Role.DOCTOR) {
+            throw new UnauthorizedActionException("ADMIN and DOCTOR accounts cannot be self-registered. Use /api/auth/admin/register.");
         }
         User user = createUserRecord(request, request.getRole());
         String token = jwtUtil.generateToken(user);
@@ -46,7 +50,7 @@ public class AuthService {
     @Transactional
     public AuthResponse registerAdminBootstrap(RegisterRequest request, String providedSecret) {
         if (!bootstrapSecret.equals(providedSecret)) {
-            throw new RuntimeException("Invalid bootstrap secret");
+            throw new UnauthorizedActionException("Invalid bootstrap secret");
         }
         User user = createUserRecord(request, Role.ADMIN);
         String token = jwtUtil.generateToken(user);
@@ -67,6 +71,12 @@ public class AuthService {
         return new AuthResponse(token,user.getRole().name(), user.getName());
     }
 
+    public void logout(String token)
+    {
+        long remaining = jwtUtil.getRemainingValidityMillis(token);
+        tokenBlocklistService.revoke(token, remaining);
+    }
+
     @Transactional
     public AdminCreatedUserResponse registerByAdmin(RegisterRequest request, User actingAdmin) {
         User user = createUserRecord(request, request.getRole());
@@ -78,7 +88,7 @@ public class AuthService {
 
     private User createUserRecord(RegisterRequest request, Role role) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new ConflictException("Email already registered");
         }
         User user = User.builder()
                 .name(request.getName())
@@ -90,7 +100,7 @@ public class AuthService {
 
         if (role == Role.DOCTOR) {
             if (request.getDepartment() == null || request.getAvgConsultationTime() == null) {
-                throw new RuntimeException("Doctors must provide department and avgConsultationTime");
+                throw new IllegalArgumentException("Doctors must provide department and avgConsultationTime");
             }
             Doctor doctor = Doctor.builder()
                     .user(user)

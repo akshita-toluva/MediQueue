@@ -1,6 +1,7 @@
 package com.mediqueue.Filter;
 
 import com.mediqueue.Service.CustomerUserDetailsService;
+import com.mediqueue.dsaLayer.TokenBlocklistService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +23,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final CustomerUserDetailsService customerUserDetailsService;
+    private final TokenBlocklistService tokenBlocklistService;
+
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -32,7 +35,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         final String jwt = authHeader.substring(7);
+
+        if (tokenBlocklistService.isRevoked(jwt)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         try {
+
             final String userEmail = jwtUtil.extractUsername(jwt);
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = customerUserDetailsService.loadUserByUsername(userEmail);
@@ -47,4 +56,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         filterChain.doFilter(request,response);
     }
+
 }

@@ -11,4 +11,5 @@ public interface QueueRepository extends JpaRepository<QueueEntry,Long> {
     Optional<QueueEntry> findByAppointmentId(Long appointmentId);
     List<QueueEntry> findByDoctorIdAndDate(Long doctorId, LocalDate date);
     List<QueueEntry> findTop5ByDoctorIdAndActualWaitTimeIsNotNullOrderByDateDesc(Long doctorId);
+    List<QueueEntry> findByAppointmentIdIn(List<Long> appointmentIds);
 }

@@ -11,8 +11,8 @@ public class AppointmentRequest {
     @NotNull(message="Doctor_id should not be null")
     private Long doctorId;
 
-    @NotBlank(message = "Department is required")
-    private String department;
+    /*@NotBlank(message = "Department is required")
+    private String department;*/
 
     @NotBlank(message = "Please describe your symptoms")
     private String symptomDescription;

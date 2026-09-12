@@ -44,4 +44,14 @@ public class AuthController {
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(authService.registerByAdmin(request, currentUser));
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authHeader) {
+       /* if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Missing or malformed Authorization header");
+        }*/
+        String token = authHeader.substring(7); // strip "Bearer "
+        authService.logout(token);
+        return ResponseEntity.noContent().build();
+    }
 }
