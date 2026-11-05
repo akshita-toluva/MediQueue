@@ -12,7 +12,7 @@ A full-stack hospital OPD queue management system with real-time updates,role-ba
 - 3-role JWT auth (Patient, Doctor, Admin)
 - Emergency case prioritization (Min-Heap)
 - Live queue updates via WebSockets
-- Admin analytics dashboard
+- Admin analytics dashboard (Planned)
 
 ## Status
 In active development
