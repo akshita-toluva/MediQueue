@@ -1,11 +1,13 @@
 package com.mediqueue.controller;
 
+import com.mediqueue.Service.AuthRateLimitService;
 import com.mediqueue.dto.AdminCreatedUserResponse;
 import com.mediqueue.dto.AuthResponse;
 import com.mediqueue.dto.LoginRequest;
 import com.mediqueue.dto.RegisterRequest;
 import com.mediqueue.Service.AuthService;
 import com.mediqueue.entity.User;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final AuthRateLimitService authRateLimitService;
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request)
@@ -26,14 +29,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request)
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest http)
     {
+        authRateLimitService.checkLogin(http.getRemoteAddr(), request.getEmail());
         return ResponseEntity.ok(authService.login(request));
     }
 
     @PostMapping("/bootstrap-admin")
-    public ResponseEntity<AuthResponse> bootstrapAdmin(@Valid @RequestBody RegisterRequest request, @RequestHeader("X-Bootstrap-Secret") String secret)
+    public ResponseEntity<AuthResponse> bootstrapAdmin(@Valid @RequestBody RegisterRequest request,
+                                                       @RequestHeader("X-Bootstrap-Secret") String secret,
+                                                       HttpServletRequest http)
     {
+        authRateLimitService.checkBootstrap(http.getRemoteAddr());
         return ResponseEntity.ok(authService.registerAdminBootstrap(request,secret));
     }
 
@@ -47,9 +54,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authHeader) {
-       /* if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Missing or malformed Authorization header");
-        }*/
+
         String token = authHeader.substring(7); // strip "Bearer "
         authService.logout(token);
         return ResponseEntity.noContent().build();

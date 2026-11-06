@@ -95,7 +95,18 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
 		</dependency>
+		<!-- Token-bucket rate limiting (Apache 2.0) -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-core</artifactId>
+			<version>8.15.0</version>
+		</dependency>
 
+		<!-- Bounded, auto-expiring in-memory cache for the per-IP buckets (Apache 2.0). Version managed by Spring Boot -->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
 
 	</dependencies>
 
