@@ -11,6 +11,8 @@ import com.mediqueue.exception.ResourceNotFoundException;
 import com.mediqueue.exception.UnauthorizedActionException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import com.mediqueue.exception.RateLimitExceededException;
+import org.springframework.http.HttpHeaders;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,6 +72,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    // 429 + Retry-After: the standard way to tell a client "slow down, try again in N seconds".
+    // Spring picks the MOST SPECIFIC handler, so this wins over the RuntimeException catch-all
+    // regardless of where it sits in the file.
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
                 .body(Map.of("error", ex.getMessage()));
     }
 }
