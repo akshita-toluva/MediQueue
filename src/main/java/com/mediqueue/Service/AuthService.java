@@ -80,9 +80,15 @@ public class AuthService {
     @Transactional
     public AdminCreatedUserResponse registerByAdmin(RegisterRequest request, User actingAdmin) {
         User user = createUserRecord(request, request.getRole());
+        // A doctor has TWO ids: the user id (login account) and the doctor id (used for booking).
+        // Return the doctor id so the admin UI / tests can use it without searching by email.
+        Long doctorId = (user.getRole() == Role.DOCTOR)
+                ? doctorRepository.findByUserId(user.getId()).map(Doctor::getId).orElse(null)
+                : null;
         return AdminCreatedUserResponse.builder()
                 .id(user.getId()).name(user.getName())
                 .email(user.getEmail()).role(user.getRole())
+                .doctorId(doctorId)
                 .build();
     }
 

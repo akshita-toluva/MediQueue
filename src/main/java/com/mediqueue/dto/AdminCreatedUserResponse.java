@@ -13,4 +13,5 @@ public class AdminCreatedUserResponse {
     private String name;
     private String email;
     private Role role;
+    private Long doctorId;   // set only when role = DOCTOR; null otherwise
 }
