@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+/* Design tokens -> Tailwind utilities (bg-ward-800, text-board, font-token, ...) */
+@theme {
+  --color-ward-950: #082F2B;   /* token board screen */
+  --color-ward-800: #0B4741;   /* brand panels, header */
+  --color-ward-700: #0F5E57;   /* buttons */
+  --color-ward-100: #DCEBE8;   /* soft text on green */
+  --color-board: #F2B134;      /* LED amber: token numbers, focus ring */
+  --color-paper: #F6F8F7;      /* page background */
+  --color-ink: #17302C;        /* body text */
+  --color-muted: #557069;      /* secondary text */
+  --color-line: #CFDDD9;       /* borders */
+  --color-alert: #B3261E;      /* errors, emergency */
+
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  --font-token: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  /* Visible keyboard focus everywhere (accessibility) */
+  :focus-visible {
+    outline: 3px solid var(--color-board);
+    outline-offset: 2px;
+  }
+}
+
+/* The ONE motion moment: the called token slides in once */
+@keyframes token-in {
+  from { transform: translateY(40%); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.token-in { animation: token-in 600ms cubic-bezier(.2, .8, .2, 1) 300ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .token-in { animation: none; }
+}
