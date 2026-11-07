@@ -2,6 +2,7 @@ package com.mediqueue.controller;
 
 import com.mediqueue.dto.AppointmentRequest;
 import com.mediqueue.dto.AppointmentResponse;
+import com.mediqueue.dto.DoctorSummaryResponse;
 import com.mediqueue.dto.QueueStatusResponse;
 import com.mediqueue.entity.*;
 import com.mediqueue.Service.AppointmentService;
@@ -37,7 +38,7 @@ public class AppointmentController {
     }
 
     @GetMapping("/doctors/available")
-    public ResponseEntity<List<Doctor>> getAvailableDoctor(
+    public ResponseEntity<List<DoctorSummaryResponse>> getAvailableDoctor(
             @RequestParam(required = false) String department){
         if(department!=null)
         {

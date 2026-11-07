@@ -8,6 +8,7 @@ import RegisterPage from './pages/RegisterPage'
 import PatientHome from './pages/PatientHome'
 import PlaceholderPage from './pages/PlaceholderPage'
 import NotFoundPage from './pages/NotFoundPage'
+import BookAppointmentPage from './pages/BookAppointmentPage'
 
 // "/" sends each user to the right place
 function HomeRedirect() {
@@ -27,6 +28,7 @@ export default function App() {
       <Route element={<ProtectedRoute roles={['PATIENT']} />}>
         <Route element={<AppLayout />}>
           <Route path="/patient" element={<PatientHome />} />
+          <Route path="/patient/book" element={<BookAppointmentPage />} />
         </Route>
       </Route>
 

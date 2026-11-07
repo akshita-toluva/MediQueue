@@ -39,3 +39,7 @@
 @media (prefers-reduced-motion: reduce) {
   .token-in { animation: none; }
 }
+@keyframes token-in {
+  from { transform: translateY(40%); }
+  to   { transform: none; }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api, { getErrorMessage } from '../api/client'
+import { Link } from 'react-router'
 
 export default function PatientHome() {
   const [appointments, setAppointments] = useState(null)   // null = still loading
@@ -15,13 +16,17 @@ export default function PatientHome() {
   return (
     <section>
        <h2 className="text-2xl font-bold tracking-tight">Your visits</h2>
-          {error && <p role="alert" className="mt-3 border-l-4 border-alert bg-red-50 px-3 py-2 text-sm text-alert">{error}</p>}
-          {!error && appointments === null && <p className="mt-3 text-muted">Loading your visits…</p>}
-          {appointments && appointments.length === 0 && (
-            <p className="mt-3 text-muted">You have no visits booked yet. Booking opens in the next update.</p>
-          )}
-          {appointments && appointments.length > 0 && (
-            <p className="mt-3">You have {appointments.length} visit(s).</p>
+       <Link to="/patient/book"
+         className="mt-4 inline-block rounded-md bg-ward-700 px-4 py-2.5 font-semibold text-white hover:bg-ward-800">
+         Book a visit
+       </Link>
+       {error && <p role="alert" className="mt-3 border-l-4 border-alert bg-red-50 px-3 py-2 text-sm text-alert">{error}</p>}
+       {!error && appointments === null && <p className="mt-3 text-muted">Loading your visits…</p>}
+       {appointments && appointments.length === 0 && (
+         <p className="mt-3 text-muted">You have no visits booked yet. Booking opens in the next update.</p>
+       )}
+       {appointments && appointments.length > 0 && (
+        <p className="mt-3">You have {appointments.length} visit(s).</p>
        )}
     </section>
   )

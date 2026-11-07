@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
 import jakarta.annotation.PostConstruct;
+import com.mediqueue.dto.DoctorSummaryResponse;
 import java.util.Map;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -275,14 +276,18 @@ public class AppointmentService {
                 .collect(Collectors.toList());
     }
 
-    public List<Doctor> getAvailableDoctors() {
+    public List<DoctorSummaryResponse> getAvailableDoctors() {
         List<Long> ids = departmentAvailabilityCache.getAllAvailableDoctorIds();
-        return doctorRepository.findAllById(ids);
+        return doctorRepository.findAllById(ids).stream().map(this::toSummary).toList();
     }
 
-    public List<Doctor> getAvailableDoctorsByDepartment(String department) {
+    public List<DoctorSummaryResponse> getAvailableDoctorsByDepartment(String department) {
         List<Long> ids = departmentAvailabilityCache.getAvailableDoctorIds(department);
-        return doctorRepository.findAllById(ids);
+        return doctorRepository.findAllById(ids).stream().map(this::toSummary).toList();
+    }
+
+    private DoctorSummaryResponse toSummary(Doctor d) {
+        return new DoctorSummaryResponse(d.getId(), d.getUser().getName(), d.getDepartment(), d.getAvgConsultationTime());
     }
 
     private AppointmentResponse mapToResponse(Appointment appointment) {
