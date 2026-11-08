@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment,Long> {
@@ -19,6 +20,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment,Long> {
     List<Appointment> findByDoctorIdAndStatus(Long doctorId, AppointmentStatus status);
     int countByDoctorIdAndStatus(Long doctorId,AppointmentStatus status);
     List<Appointment> findByStatusInAndBookedAtAfter(List<AppointmentStatus> statuses, LocalDateTime cutoff);
+    List<Appointment> findByPatientIdOrderByBookedAtDesc(Long patientId);
+    Optional<Appointment> findFirstByPatientIdAndDoctorIdAndStatus(Long patientId, Long doctorId, AppointmentStatus status);
 
     //Admin analytics
     // Live load: appointments still waiting or being seen, booked since :since, one row per department.
