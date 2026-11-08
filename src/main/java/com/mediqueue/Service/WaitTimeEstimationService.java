@@ -18,14 +18,14 @@ public class WaitTimeEstimationService {
             "cannot breathe"
     );
 
-    public int predictWaitTime(int patientsAhead, int avgConsultationTime, List<Integer> recentActualWaitTimes,double noShowRate) {
-        if (recentActualWaitTimes == null || recentActualWaitTimes.isEmpty()) {
-            // Cold start: no completed-consultation history for this doctor yet
-            //Move patients ahead by doctors no-show rate
-            int expectedPatientsAhead=(int)Math.round(patientsAhead*(1-noShowRate));
-            return expectedPatientsAhead * avgConsultationTime;
-        }
-        return recencyWeightedAverage(recentActualWaitTimes);
+    public int predictWaitTime(int patientsAhead, int avgConsultationTime, List<Integer> recentActualWaitTimes, double noShowRate) {
+        // History is deliberately NOT used yet: actualWaitTime measures booking -> completion
+        // (one patient's total wait), not consultation length, so it cannot be scaled by queue
+        // position — using it gave patient #1 and #10 the same estimate (e.g. 395 min for #2).
+        // It returns once the Doctor portal records consultation start/end times.
+        // Until then: patients ahead, discounted by this doctor's no-show rate, x avg consultation time.
+        int expectedPatientsAhead = (int) Math.round(patientsAhead * (1 - noShowRate));
+        return expectedPatientsAhead * avgConsultationTime;
     }
 
     // recentActualWaitTimes must be ordered most-recent-first (index 0 = latest

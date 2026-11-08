@@ -224,6 +224,14 @@ public class AppointmentService {
             });
         }
         recalculateQueue(appointment.getDoctor().getId());
+        // The resolved patient has left the queue, so recalculateQueue (PENDING only) won't notify them.
+        // Push their final status directly — after commit, so they never see a change that gets rolled back.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                queueBroadcastService.broadcastQueueUpdate(appointment, null);
+            }
+        });
         Appointment refreshed = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found after resolve"));
         return mapToResponse(refreshed);
