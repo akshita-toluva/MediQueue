@@ -18,15 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
 import jakarta.annotation.PostConstruct;
 import com.mediqueue.dto.DoctorSummaryResponse;
-import java.util.Map;
+
+import java.util.*;
+
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,7 +62,29 @@ public class AppointmentService {
         if (!available) {
             throw new ConflictException("Doctor is not available");
         }
+
         Priority priority = waitTimeEstimationService.classifyPriority(request.getSymptomDescription());
+
+        Optional<Appointment> existing = appointmentRepository
+                .findFirstByPatientIdAndDoctorIdAndStatus(patient.getId(), doctor.getId(), AppointmentStatus.PENDING);
+        if (existing.isPresent()) {
+            Appointment current = existing.get();
+            // Symptoms got worse while waiting: escalate the visit already in the queue.
+            // Blocking a possible emergency is never acceptable; a second queue slot isn't either.
+            if (priority == Priority.EMERGENCY && current.getPriority() == Priority.NORMAL) {
+                current.setPriority(Priority.EMERGENCY);
+                priorityAuditLogRepository.save(PriorityAuditLog.builder()
+                        .appointment(current)
+                        .changedBy(patient)              // audit: escalated by the patient's own triage
+                        .oldPriority(Priority.NORMAL)
+                        .newPriority(Priority.EMERGENCY)
+                        .build());
+                recalculateQueue(doctor.getId());
+                return mapToResponse(current);
+            }
+            throw new ConflictException("You already have a visit waiting with this doctor");
+        }
+
         int queuePosition = appointmentRepository.countByDoctorIdAndStatus(
                 doctor.getId(), AppointmentStatus.PENDING) + 1;
         Appointment appointment = Appointment.builder()
@@ -75,22 +96,13 @@ public class AppointmentService {
                 .queuePosition(queuePosition)
                 .build();
         Appointment saved = appointmentRepository.save(appointment);
-        recalculateQueue(doctor.getId());
-        Appointment refreshed = appointmentRepository.findById(saved.getId())
-                .orElseThrow(() -> new RuntimeException("Appointment not found after save"));
-        int patientsAhead = refreshed.getQueuePosition() - 1;
-        List<Integer> recentActualWaitTimes = recentActualWaitTimes(doctor.getId());
-        double noShowRate = noShowTrackerService.getNoShowRate(doctor.getId());
-        int estimatedWaitTime = waitTimeEstimationService.predictWaitTime(
-                patientsAhead, doctor.getAvgConsultationTime(), recentActualWaitTimes, noShowRate);
-
-        QueueEntry queueEntry = QueueEntry.builder()
-                .appointment(refreshed)
+        queueRepository.save(QueueEntry.builder()
+                .appointment(saved)
                 .doctor(doctor)
-                .estimatedWaitTime(estimatedWaitTime)
-                .build();
-        queueRepository.save(queueEntry);
-        return mapToResponse(refreshed);
+                .estimatedWaitTime(0)
+                .build());
+        recalculateQueue(doctor.getId());
+        return mapToResponse(saved);
     }
 
     @Transactional
@@ -226,8 +238,8 @@ public class AppointmentService {
     }
 
     private void recalculateQueue(Long doctorId) {
-        List<Appointment>
-                pending = appointmentRepository.findByDoctorIdAndStatus(doctorId, AppointmentStatus.PENDING);
+        List<Appointment> pending =
+                appointmentRepository.findByDoctorIdAndStatus(doctorId, AppointmentStatus.PENDING);
         Comparator<Appointment> queueOrder = Comparator
                 .comparing((Appointment a) -> a.getPriority() == Priority.EMERGENCY ? 0 : 1)
                 .thenComparing(Appointment::getBookedAt);
@@ -241,11 +253,30 @@ public class AppointmentService {
             ordered.add(next);
         }
         appointmentRepository.saveAll(ordered);
+        if (ordered.isEmpty()) return;
 
-        List<Long> orderedIds = ordered.stream().map(Appointment::getId).collect(Collectors.toList());
-        Map<Long, Integer> waitTimeByAppointmentId = queueRepository.findByAppointmentIdIn(orderedIds)
+        // Positions changed, so every wait estimate must change with them.
+        // Fetch history + no-show rate ONCE per recalculation, not once per patient.
+        Doctor doctor = ordered.get(0).getDoctor();
+        List<Integer> recent = recentActualWaitTimes(doctorId);
+        double noShowRate = noShowTrackerService.getNoShowRate(doctorId);
+
+        List<Long> orderedIds = ordered.stream().map(Appointment::getId).toList();
+        Map<Long, QueueEntry> entryByAppointmentId = queueRepository.findByAppointmentIdIn(orderedIds)
                 .stream()
-                .collect(Collectors.toMap(qe -> qe.getAppointment().getId(), QueueEntry::getEstimatedWaitTime));
+                .collect(Collectors.toMap(qe -> qe.getAppointment().getId(), qe -> qe));
+
+        for (Appointment a : ordered) {
+            QueueEntry qe = entryByAppointmentId.get(a.getId());
+            if (qe != null) {
+                qe.setEstimatedWaitTime(waitTimeEstimationService.predictWaitTime(
+                        a.getQueuePosition() - 1, doctor.getAvgConsultationTime(), recent, noShowRate));
+            }
+        }
+        queueRepository.saveAll(entryByAppointmentId.values());
+
+        Map<Long, Integer> waitTimeByAppointmentId = entryByAppointmentId.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getEstimatedWaitTime()));
 
         Runnable broadcast = () -> {
             for (Appointment appointment : ordered) {
@@ -254,23 +285,20 @@ public class AppointmentService {
             }
         };
 
-        if (TransactionSynchronizationManager.isSynchronizationActive())
-        {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
-            {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     broadcast.run();
                 }
             });
-        }
-        else {
+        } else {
             broadcast.run();
         }
     }
 
     public List<AppointmentResponse> getMyAppointments(User patient) {
-        return appointmentRepository.findByPatientId(patient.getId())
+        return appointmentRepository.findByPatientIdOrderByBookedAtDesc(patient.getId())
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
