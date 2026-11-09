@@ -19,6 +19,7 @@ import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
 import jakarta.annotation.PostConstruct;
 import com.mediqueue.dto.DoctorSummaryResponse;
 
+import java.time.LocalDate;
 import java.util.*;
 
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -235,6 +236,38 @@ public class AppointmentService {
         Appointment refreshed = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Appointment not found after resolve"));
         return mapToResponse(refreshed);
+    }
+
+    // Visits still waiting from a previous day can never be seen in today's OPD -> close them.
+    @Transactional
+    public int closeStaleVisits() {
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        List<Appointment> stale = appointmentRepository
+                .findByStatusAndBookedAtBefore(AppointmentStatus.PENDING, startOfToday);
+        if (stale.isEmpty()) return 0;
+
+        Set<Long> doctorIds = new HashSet<>();
+        for (Appointment a : stale) {
+            a.setStatus(AppointmentStatus.CANCELLED);
+            doctorIds.add(a.getDoctor().getId());
+        }
+        appointmentRepository.saveAll(stale);
+
+        // Today's patients were ranked behind these visits: re-rank so their positions and waits drop.
+        // Lock each doctor row first, same as booking, so a booking at the same moment can't race the re-rank.
+        for (Long doctorId : doctorIds) {
+            doctorRepository.findByIdForUpdate(doctorId);
+            recalculateQueue(doctorId);
+        }
+
+        // Patients with the page open see the visit move to "Past visits" (after commit, as everywhere else)
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                stale.forEach(a -> queueBroadcastService.broadcastQueueUpdate(a, null));
+            }
+        });
+        return stale.size();
     }
 
     private List<Integer> recentActualWaitTimes(Long doctorId) {

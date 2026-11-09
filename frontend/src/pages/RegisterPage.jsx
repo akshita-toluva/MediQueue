@@ -46,7 +46,7 @@ export default function RegisterPage() {
             )}
             <FormField id="name" label="Full name" value={name} onChange={setName} autoComplete="name" />
             <FormField id="email" label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
-            <FormField id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
+            <FormField id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" minLength={8} maxLength={72}/>
             <FormField id="confirm" label="Confirm password" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
             <button type="submit" disabled={submitting}
               className="w-full rounded-md bg-ward-700 py-2.5 font-semibold text-white hover:bg-ward-800 disabled:opacity-60">

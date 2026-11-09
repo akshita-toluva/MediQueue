@@ -1,9 +1,6 @@
 package com.mediqueue.controller;
 
-import com.mediqueue.dto.AppointmentRequest;
-import com.mediqueue.dto.AppointmentResponse;
-import com.mediqueue.dto.DoctorSummaryResponse;
-import com.mediqueue.dto.QueueStatusResponse;
+import com.mediqueue.dto.*;
 import com.mediqueue.entity.*;
 import com.mediqueue.Service.AppointmentService;
 import jakarta.validation.Valid;
@@ -76,10 +73,13 @@ public class AppointmentController {
 
     @PatchMapping("/doctors/{id}/availability")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public ResponseEntity<Doctor> updateAvailability(
+    public ResponseEntity<DoctorAvailabilityResponse> updateAvailability(
             @PathVariable Long id,
             @RequestParam boolean available,
             @AuthenticationPrincipal User currentUser){
-        return ResponseEntity.ok(appointmentService.updateAvailability(id, available, currentUser));
+        Doctor d = appointmentService.updateAvailability(id, available, currentUser);
+        // Map at the boundary: the entity stays internal, the DTO is the public contract
+        return ResponseEntity.ok(new DoctorAvailabilityResponse(
+                d.getId(), d.getUser().getName(), d.getDepartment(), d.isAvailable()));
     }
 }
