@@ -22,6 +22,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment,Long> {
     List<Appointment> findByStatusInAndBookedAtAfter(List<AppointmentStatus> statuses, LocalDateTime cutoff);
     List<Appointment> findByPatientIdOrderByBookedAtDesc(Long patientId);
     Optional<Appointment> findFirstByPatientIdAndDoctorIdAndStatus(Long patientId, Long doctorId, AppointmentStatus status);
+    List<Appointment> findByStatusAndBookedAtBefore(AppointmentStatus status, LocalDateTime cutoff);
 
     //Admin analytics
     // Live load: appointments still waiting or being seen, booked since :since, one row per department.

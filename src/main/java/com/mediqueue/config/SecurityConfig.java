@@ -40,14 +40,8 @@ public class SecurityConfig {
                     response.getWriter().write("{\"error\":\"Authentication required\"}");
                 }))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/bootstrap-admin",
-                                "/ws/**",
-                                "/error",
-                                "/api/health"
-                        ).permitAll()
+                        .requestMatchers("/api/auth/register","/api/auth/login","/api/auth/bootstrap-admin","/ws/**","/error","/api/health",
+                                "/v3/api-docs/**","/swagger-ui/**","/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())

@@ -17,7 +17,7 @@ public class HealthController {
         return ResponseEntity.ok(Map.of(
                 "status", "UP",
                 "app","MediQueue",
-                "message","Hospital OPS system is running"
+                "message","Hospital OPD system is running"
         ));
     }
 }
