@@ -23,6 +23,13 @@ public interface AppointmentRepository extends JpaRepository<Appointment,Long> {
     List<Appointment> findByPatientIdOrderByBookedAtDesc(Long patientId);
     Optional<Appointment> findFirstByPatientIdAndDoctorIdAndStatus(Long patientId, Long doctorId, AppointmentStatus status);
     List<Appointment> findByStatusAndBookedAtBefore(AppointmentStatus status, LocalDateTime cutoff);
+    List<Appointment> findByDoctorIdAndStatusOrderByQueuePositionAsc(Long doctorId, AppointmentStatus status);
+    Optional<Appointment> findFirstByDoctorIdAndStatus(Long doctorId, AppointmentStatus status);
+    boolean existsByDoctorIdAndStatus(Long doctorId, AppointmentStatus status);
+
+    // Only the doctor id, so we can lock the doctor row BEFORE loading the appointment itself
+    @Query("select a.doctor.id from Appointment a where a.id = :id")
+    Optional<Long> findDoctorIdById(@Param("id") Long id);
 
     //Admin analytics
     // Live load: appointments still waiting or being seen, booked since :since, one row per department.
