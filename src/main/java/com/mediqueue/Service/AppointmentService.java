@@ -1,9 +1,7 @@
 package com.mediqueue.Service;
 import com.mediqueue.dsaLayer.HashMapDoctorCache;
 import com.mediqueue.dsaLayer.MinHeap;
-import com.mediqueue.dto.AppointmentRequest;
-import com.mediqueue.dto.AppointmentResponse;
-import com.mediqueue.dto.QueueStatusResponse;
+import com.mediqueue.dto.*;
 import com.mediqueue.entity.*;
 import com.mediqueue.exception.ConflictException;
 import com.mediqueue.exception.ResourceNotFoundException;
@@ -17,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mediqueue.dsaLayer.DepartmentAvailabilityCache;
 import jakarta.annotation.PostConstruct;
-import com.mediqueue.dto.DoctorSummaryResponse;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -74,6 +71,7 @@ public class AppointmentService {
             // Blocking a possible emergency is never acceptable; a second queue slot isn't either.
             if (priority == Priority.EMERGENCY && current.getPriority() == Priority.NORMAL) {
                 current.setPriority(Priority.EMERGENCY);
+                current.setSymptoms(request.getSymptomDescription().trim());   // doctor needs the newer, worse symptoms
                 priorityAuditLogRepository.save(PriorityAuditLog.builder()
                         .appointment(current)
                         .changedBy(patient)              // audit: escalated by the patient's own triage
@@ -95,6 +93,7 @@ public class AppointmentService {
                 .priority(priority)
                 .status(AppointmentStatus.PENDING)
                 .queuePosition(queuePosition)
+                .symptoms(request.getSymptomDescription().trim())
                 .build();
         Appointment saved = appointmentRepository.save(appointment);
         queueRepository.save(QueueEntry.builder()
@@ -200,74 +199,73 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse resolveAppointment(Long appointmentId, AppointmentStatus outcome,
-                                                  User staff) {
+    public AppointmentResponse resolveAppointment(Long appointmentId, AppointmentStatus outcome, User staff) {
         if (outcome != AppointmentStatus.COMPLETED && outcome != AppointmentStatus.NO_SHOW) {
             throw new IllegalArgumentException("Outcome must be COMPLETED or NO_SHOW");
         }
+        // Lock the doctor row FIRST, then load the appointment, so its status can't change
+        // (e.g. a parallel "Call next") between our check and our update.
+        Long doctorId = appointmentRepository.findDoctorIdById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        doctorRepository.findByIdForUpdate(doctorId);
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+
         if (staff.getRole() == Role.DOCTOR &&
                 !appointment.getDoctor().getUser().getId().equals(staff.getId())) {
             throw new UnauthorizedActionException("You are not authorised to resolve this appointment");
         }
+        // Allowed moves only: PENDING -> IN_PROGRESS -> COMPLETED, or PENDING -> NO_SHOW
+        if (outcome == AppointmentStatus.COMPLETED && appointment.getStatus() != AppointmentStatus.IN_PROGRESS) {
+            throw new ConflictException("Call the patient in before marking the visit completed");
+        }
+        if (outcome == AppointmentStatus.NO_SHOW && appointment.getStatus() != AppointmentStatus.PENDING) {
+            throw new ConflictException("Only a waiting patient can be marked as a no-show");
+        }
+
         appointment.setStatus(outcome);
-        appointmentRepository.save(appointment);
         if (outcome == AppointmentStatus.NO_SHOW) {
             noShowTrackerService.recordNoShow(appointment);
         } else {
-            noShowTrackerService.recordShow(appointment.getDoctor().getId());
+            appointment.setConsultationEndedAt(LocalDateTime.now());
+            noShowTrackerService.recordShow(doctorId);
+            // Real wait = booked -> called in. The old value (booked -> finished) wrongly included the consultation.
             queueRepository.findByAppointmentId(appointmentId).ifPresent(qe -> {
-                long minutes = Duration.between(appointment.getBookedAt(),
-                        LocalDateTime.now()).toMinutes();
-                qe.setActualWaitTime((int) minutes);
+                qe.setActualWaitTime((int) Duration.between(
+                        appointment.getBookedAt(), appointment.getConsultationStartedAt()).toMinutes());
                 queueRepository.save(qe);
             });
         }
-        recalculateQueue(appointment.getDoctor().getId());
-        // The resolved patient has left the queue, so recalculateQueue (PENDING only) won't notify them.
-        // Push their final status directly — after commit, so they never see a change that gets rolled back.
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                queueBroadcastService.broadcastQueueUpdate(appointment, null);
-            }
-        });
-        Appointment refreshed = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found after resolve"));
-        return mapToResponse(refreshed);
+        appointmentRepository.save(appointment);
+        recalculateQueue(doctorId);
+        broadcastAfterCommit(appointment);
+        return mapToResponse(appointment);
     }
 
-    // Visits still waiting from a previous day can never be seen in today's OPD -> close them.
     @Transactional
     public int closeStaleVisits() {
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
         List<Appointment> stale = appointmentRepository
                 .findByStatusAndBookedAtBefore(AppointmentStatus.PENDING, startOfToday);
-        if (stale.isEmpty()) return 0;
+        List<Appointment> forgotten = appointmentRepository
+                .findByStatusAndBookedAtBefore(AppointmentStatus.IN_PROGRESS, startOfToday);
+        if (stale.isEmpty() && forgotten.isEmpty()) return 0;
 
         Set<Long> doctorIds = new HashSet<>();
-        for (Appointment a : stale) {
-            a.setStatus(AppointmentStatus.CANCELLED);
-            doctorIds.add(a.getDoctor().getId());
-        }
+        stale.forEach(a -> { a.setStatus(AppointmentStatus.CANCELLED); doctorIds.add(a.getDoctor().getId()); });
+        // Seen, but the end time is unknown: consultationEndedAt stays null, so Day 19's
+        // duration history ignores it instead of learning a fake 14-hour consultation.
+        forgotten.forEach(a -> { a.setStatus(AppointmentStatus.COMPLETED); doctorIds.add(a.getDoctor().getId()); });
         appointmentRepository.saveAll(stale);
+        appointmentRepository.saveAll(forgotten);
 
-        // Today's patients were ranked behind these visits: re-rank so their positions and waits drop.
-        // Lock each doctor row first, same as booking, so a booking at the same moment can't race the re-rank.
         for (Long doctorId : doctorIds) {
             doctorRepository.findByIdForUpdate(doctorId);
             recalculateQueue(doctorId);
         }
-
-        // Patients with the page open see the visit move to "Past visits" (after commit, as everywhere else)
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                stale.forEach(a -> queueBroadcastService.broadcastQueueUpdate(a, null));
-            }
-        });
-        return stale.size();
+        stale.forEach(this::broadcastAfterCommit);
+        forgotten.forEach(this::broadcastAfterCommit);
+        return stale.size() + forgotten.size();
     }
 
     private List<Integer> recentActualWaitTimes(Long doctorId) {
@@ -302,6 +300,8 @@ public class AppointmentService {
         List<Integer> recent = recentActualWaitTimes(doctorId);
         double noShowRate = noShowTrackerService.getNoShowRate(doctorId);
 
+        int inProgress = appointmentRepository.existsByDoctorIdAndStatus(doctorId, AppointmentStatus.IN_PROGRESS) ? 1 : 0;
+
         List<Long> orderedIds = ordered.stream().map(Appointment::getId).toList();
         Map<Long, QueueEntry> entryByAppointmentId = queueRepository.findByAppointmentIdIn(orderedIds)
                 .stream()
@@ -311,7 +311,7 @@ public class AppointmentService {
             QueueEntry qe = entryByAppointmentId.get(a.getId());
             if (qe != null) {
                 qe.setEstimatedWaitTime(waitTimeEstimationService.predictWaitTime(
-                        a.getQueuePosition() - 1, doctor.getAvgConsultationTime(), recent, noShowRate));
+                        a.getQueuePosition() - 1+ inProgress, doctor.getAvgConsultationTime(), recent, noShowRate));
             }
         }
         queueRepository.saveAll(entryByAppointmentId.values());
@@ -370,5 +370,59 @@ public class AppointmentService {
                 .queuePosition(appointment.getQueuePosition())
                 .bookedAt(appointment.getBookedAt())
                 .build();
+    }
+
+    private Doctor doctorFor(User user) {
+        return doctorRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("No doctor profile for this account"));
+    }
+
+    private DoctorQueueItem toQueueItem(Appointment a) {
+        return new DoctorQueueItem(a.getId(), a.getPatient().getName(), a.getSymptoms(),
+                a.getPriority(), a.getQueuePosition(), a.getBookedAt(), a.getConsultationStartedAt());
+    }
+
+    private void broadcastAfterCommit(Appointment appointment) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                queueBroadcastService.broadcastQueueUpdate(appointment, null);
+            }
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public DoctorQueueResponse getMyQueue(User doctorUser) {
+        Doctor doctor = doctorFor(doctorUser);
+        DoctorQueueItem current = appointmentRepository
+                .findFirstByDoctorIdAndStatus(doctor.getId(), AppointmentStatus.IN_PROGRESS)
+                .map(this::toQueueItem).orElse(null);
+        List<DoctorQueueItem> waiting = appointmentRepository
+                .findByDoctorIdAndStatusOrderByQueuePositionAsc(doctor.getId(), AppointmentStatus.PENDING)
+                .stream().map(this::toQueueItem).toList();
+        return new DoctorQueueResponse(doctor.getId(), doctor.isAvailable(), current, waiting);
+    }
+
+    // The SERVER picks who is next (top of the queue), not the browser:
+    // two tabs or a double-click can never start two different patients.
+    @Transactional
+    public AppointmentResponse callNext(User doctorUser) {
+        Doctor doctor = doctorFor(doctorUser);
+        doctorRepository.findByIdForUpdate(doctor.getId());   // same lock as booking: one queue change at a time
+
+        if (appointmentRepository.existsByDoctorIdAndStatus(doctor.getId(), AppointmentStatus.IN_PROGRESS)) {
+            throw new ConflictException("Finish the current consultation before calling the next patient");
+        }
+        Appointment next = appointmentRepository
+                .findByDoctorIdAndStatusOrderByQueuePositionAsc(doctor.getId(), AppointmentStatus.PENDING)
+                .stream().findFirst()
+                .orElseThrow(() -> new ConflictException("No patients waiting"));
+
+        next.setStatus(AppointmentStatus.IN_PROGRESS);
+        next.setConsultationStartedAt(LocalDateTime.now());
+        appointmentRepository.save(next);
+        recalculateQueue(doctor.getId());   // everyone behind moves up one
+        broadcastAfterCommit(next);         // the called patient's card learns "With the doctor"
+        return mapToResponse(next);
     }
 }

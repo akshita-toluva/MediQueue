@@ -49,6 +49,15 @@ public class Appointment {
     @Column(name="booked_at")
     private LocalDateTime bookedAt;
 
+    @Column(name = "symptoms", length = 500)
+    private String symptoms;
+
+    @Column(name = "consultation_started_at")
+    private LocalDateTime consultationStartedAt;
+
+    @Column(name = "consultation_ended_at")
+    private LocalDateTime consultationEndedAt;
+
     @PrePersist
     public void prePersist() {
         this.bookedAt = LocalDateTime.now();
