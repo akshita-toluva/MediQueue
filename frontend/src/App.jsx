@@ -9,6 +9,7 @@ import PatientHome from './pages/PatientHome'
 import PlaceholderPage from './pages/PlaceholderPage'
 import NotFoundPage from './pages/NotFoundPage'
 import BookAppointmentPage from './pages/BookAppointmentPage'
+import DoctorHome from './pages/DoctorHome'
 
 // "/" sends each user to the right place
 function HomeRedirect() {
@@ -34,8 +35,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute roles={['DOCTOR']} />}>
         <Route element={<AppLayout />}>
-          <Route path="/doctor" element={<PlaceholderPage title="Doctor dashboard" note="Live queue arrives with the Doctor portal." />} />
-        </Route>
+           <Route path="/doctor" element={<DoctorHome />} />        </Route>
       </Route>
 
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>

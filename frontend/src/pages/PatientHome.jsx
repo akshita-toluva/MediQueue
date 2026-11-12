@@ -110,17 +110,30 @@ export default function PatientHome() {
     const position = latest?.queuePosition ?? a.queuePosition
     const emergency = a.priority === 'EMERGENCY'
 
+    const visitStatus = latest?.status ?? a.status
+    const withDoctor = visitStatus === 'IN_PROGRESS'
+
     return (
       <article className="overflow-hidden rounded-xl bg-ward-950 text-white">
         <div className="flex items-start justify-between px-6 py-5">
           <div>
-            <p className="text-ward-100">Your place in the queue</p>
-            <p className="font-token text-6xl font-bold text-board" aria-live="polite">{position}</p>
-            {latest && (
-              <p className="mt-1 text-ward-100">
+             {withDoctor ? (
+               <>
+                <p className="text-ward-100">Your visit</p>
+                <p className="font-token text-4xl font-bold text-board" aria-live="polite">With the doctor</p>
+                <p className="mt-1 text-ward-100">Please go in now.</p>
+               </>
+               ) : (
+               <>
+               <p className="text-ward-100">Your place in the queue</p>
+               <p className="font-token text-6xl font-bold text-board" aria-live="polite">{position}</p>
+               {latest && (
+               <p className="mt-1 text-ward-100">
                 {position === 1 ? "You're next" : `About ${latest.estimatedWaitTime} min wait`}
-              </p>
-            )}
+               </p>
+               )}
+               </>
+             )}
           </div>
           {emergency && <span className="rounded bg-alert px-2 py-1 text-xs font-bold">URGENT</span>}
         </div>
@@ -128,7 +141,7 @@ export default function PatientHome() {
           <dt className="text-ward-100">Doctor</dt><dd>{a.doctorName}</dd>
           <dt className="text-ward-100">Department</dt><dd>{a.department}</dd>
           <dt className="text-ward-100">Booked</dt><dd>{fmt(a.bookedAt)}</dd>
-          <dt className="text-ward-100">Status</dt><dd>{STATUS_LABEL[latest?.status ?? a.status]}</dd>
+          <dt className="text-ward-100">Status</dt><dd>{STATUS_LABEL[visitStatus]}</dd>
         </dl>
         <div className="flex items-center justify-between px-6 pb-5">
           {error ? <p className="text-sm text-red-300">{error}</p> : <span className="text-xs text-ward-100">Estimate, not a guarantee</span>}
