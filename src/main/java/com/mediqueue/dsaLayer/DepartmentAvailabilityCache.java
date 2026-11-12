@@ -52,5 +52,15 @@ public class DepartmentAvailabilityCache {
         return KEY_PREFIX + department;
     }
 
+    // Deletes every department set (doctors:available:*) so the startup warm-up can rebuild them from the DB.
+    // KEYS is O(n) and blocks Valkey briefly: fine once at startup with a handful of keys,
+    // never call this per request (use SCAN for large keyspaces).
+    public void clearAll() {
+        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
 
 }

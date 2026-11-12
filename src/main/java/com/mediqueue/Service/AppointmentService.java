@@ -41,6 +41,7 @@ public class AppointmentService {
 
     @PostConstruct
     public void warmDepartmentAvailabilityCache() {
+        departmentAvailabilityCache.clearAll();
         doctorRepository.findByAvailableTrue()
                 .forEach(d -> departmentAvailabilityCache.markAvailable(d.getDepartment(), d.getId()));
     }
