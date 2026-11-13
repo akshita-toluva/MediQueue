@@ -14,6 +14,7 @@ public class QueueBroadcastService {
                 appointment.getId(),
                 appointment.getQueuePosition(),
                 appointment.getStatus().name(),
+                appointment.getPriority().name(),
                 estimatedWaitTime
         );
         messagingTemplate.convertAndSend("/topic/appointment/" + appointment.getId(), payload);
@@ -22,6 +23,7 @@ public class QueueBroadcastService {
             Long appointmentId,
             Integer queuePosition,
             String status,
+            String priority,
             Integer estimatedWaitTime
     ) {}
 }

@@ -108,7 +108,7 @@ export default function PatientHome() {
     // Two sources: the live push and the manual Refresh. Show whichever arrived last.
     const latest = update && (!status || update.at > status.at) ? update : status
     const position = latest?.queuePosition ?? a.queuePosition
-    const emergency = a.priority === 'EMERGENCY'
+    const emergency = (latest?.priority ?? a.priority) === 'EMERGENCY'
 
     const visitStatus = latest?.status ?? a.status
     const withDoctor = visitStatus === 'IN_PROGRESS'

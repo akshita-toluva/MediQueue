@@ -17,15 +17,13 @@ public class WaitTimeEstimationService {
             "can't breathe",
             "cannot breathe"
     );
+    private static final int MIN_SAMPLES = 3;
 
-    public int predictWaitTime(int patientsAhead, int avgConsultationTime, List<Integer> recentActualWaitTimes, double noShowRate) {
-        // History is deliberately NOT used yet: actualWaitTime measures booking -> completion
-        // (one patient's total wait), not consultation length, so it cannot be scaled by queue
-        // position — using it gave patient #1 and #10 the same estimate (e.g. 395 min for #2).
-        // It returns once the Doctor portal records consultation start/end times.
-        // Until then: patients ahead, discounted by this doctor's no-show rate, x avg consultation time.
+    public int predictWaitTime(int patientsAhead, int avgConsultationTime,
+                               List<Integer> recentConsultationMinutes, double noShowRate) {
+        // Some of the patients ahead won't turn up: discount by this doctor's no-show rate.
         int expectedPatientsAhead = (int) Math.round(patientsAhead * (1 - noShowRate));
-        return expectedPatientsAhead * avgConsultationTime;
+        return expectedPatientsAhead * learnedConsultationMinutes(avgConsultationTime, recentConsultationMinutes);
     }
 
     // recentActualWaitTimes must be ordered most-recent-first (index 0 = latest
@@ -47,10 +45,25 @@ public class WaitTimeEstimationService {
         if (symptomDescription == null) {
             return Priority.NORMAL;
         }
-        String normalized = symptomDescription.toLowerCase();
-        boolean isEmergency = EMERGENCY_KEYWORDS.stream().anyMatch(normalized::contains);
+        String text = lettersOnly(symptomDescription);
+        boolean isEmergency = EMERGENCY_KEYWORDS.stream()
+                .map(WaitTimeEstimationService::lettersOnly)
+                .anyMatch(text::contains);
         return isEmergency ? Priority.EMERGENCY : Priority.NORMAL;
     }
 
+    private static String lettersOnly(String s) {
+        return s.toLowerCase().replaceAll("[^a-z]", "");
+    }
+
+    int learnedConsultationMinutes(int configuredAvg, List<Integer> recentConsultationMinutes) {
+        if (recentConsultationMinutes == null) return configuredAvg;
+        int max = configuredAvg * 3;
+        List<Integer> believable = recentConsultationMinutes.stream()
+                .filter(m -> m >= 1 && m <= max)   // drop test clicks and forgotten "Complete" buttons
+                .toList();
+        if (believable.size() < MIN_SAMPLES) return configuredAvg;
+        return recencyWeightedAverage(believable);
+    }
 }
 

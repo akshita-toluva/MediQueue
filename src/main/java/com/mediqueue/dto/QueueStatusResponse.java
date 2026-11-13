@@ -4,6 +4,7 @@ package com.mediqueue.dto;
 import com.mediqueue.entity.AppointmentStatus;
 import lombok.Builder;
 import lombok.Data;
+import com.mediqueue.entity.Priority;
 
 import java.time.LocalDate;
 
@@ -17,4 +18,5 @@ public class QueueStatusResponse {
     private int estimatedWaitTime;
     private Integer actualWaitTime;
     private LocalDate date;
+    private Priority priority;
 }
