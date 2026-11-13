@@ -10,6 +10,7 @@ import PlaceholderPage from './pages/PlaceholderPage'
 import NotFoundPage from './pages/NotFoundPage'
 import BookAppointmentPage from './pages/BookAppointmentPage'
 import DoctorHome from './pages/DoctorHome'
+import HealthProfilePage from './pages/HealthProfilePage'
 
 // "/" sends each user to the right place
 function HomeRedirect() {
@@ -30,6 +31,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/patient" element={<PatientHome />} />
           <Route path="/patient/book" element={<BookAppointmentPage />} />
+          <Route path="/patient/profile" element={<HealthProfilePage />} />
         </Route>
       </Route>
 

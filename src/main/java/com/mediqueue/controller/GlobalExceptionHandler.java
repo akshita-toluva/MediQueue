@@ -13,6 +13,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.mediqueue.exception.RateLimitExceededException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,6 +68,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String message = String.format("Invalid value '%s' for parameter '%s'", ex.getValue(), ex.getName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", message));
+    }
+
+    // Bad JSON or an unknown enum value in the BODY ("DIABETIS"). Without this, the
+    // RuntimeException catch-all turned a client mistake into a 500.
+    // The generic message is deliberate: ex.getMessage() leaks Java class names.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "Request body is malformed or contains an invalid value"));
     }
 
     @ExceptionHandler(RuntimeException.class)
