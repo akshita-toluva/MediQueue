@@ -26,6 +26,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment,Long> {
     List<Appointment> findByDoctorIdAndStatusOrderByQueuePositionAsc(Long doctorId, AppointmentStatus status);
     Optional<Appointment> findFirstByDoctorIdAndStatus(Long doctorId, AppointmentStatus status);
     boolean existsByDoctorIdAndStatus(Long doctorId, AppointmentStatus status);
+    List<Appointment> findTop10ByDoctorIdAndStatusAndConsultationEndedAtIsNotNullOrderByConsultationEndedAtDesc(
+            Long doctorId, AppointmentStatus status);
 
     // Only the doctor id, so we can lock the doctor row BEFORE loading the appointment itself
     @Query("select a.doctor.id from Appointment a where a.id = :id")

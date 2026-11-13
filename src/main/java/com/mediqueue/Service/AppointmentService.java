@@ -73,6 +73,7 @@ public class AppointmentService {
             if (priority == Priority.EMERGENCY && current.getPriority() == Priority.NORMAL) {
                 current.setPriority(Priority.EMERGENCY);
                 current.setSymptoms(request.getSymptomDescription().trim());   // doctor needs the newer, worse symptoms
+                current.setEscalatedAt(LocalDateTime.now());
                 priorityAuditLogRepository.save(PriorityAuditLog.builder()
                         .appointment(current)
                         .changedBy(patient)              // audit: escalated by the patient's own triage
@@ -137,35 +138,36 @@ public class AppointmentService {
     }
 
     @Transactional
-    public AppointmentResponse overridePriority(Long appointmentId, Priority newPriority, User
-            changedBy) {
+    public AppointmentResponse overridePriority(Long appointmentId, Priority newPriority, User changedBy) {
+        // Lock first, then read: the appointment can't change between our check and our update.
+        Long doctorId = appointmentRepository.findDoctorIdById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        doctorRepository.findByIdForUpdate(doctorId);
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
-        doctorRepository.findByIdForUpdate(appointment.getDoctor().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+
         if (changedBy.getRole() == Role.DOCTOR &&
                 !appointment.getDoctor().getUser().getId().equals(changedBy.getId())) {
             throw new UnauthorizedActionException("You are not authorised to modify this appointment");
         }
         Priority oldPriority = appointment.getPriority();
-        // Skip logging/recalculating on a no-op PATCH (same value re-submitted) -
-        // an audit trail should record actual changes, not repeated confirmations
+        // Skip logging/recalculating on a no-op (same value re-submitted):
+        // the audit trail records real changes, not repeated confirmations.
         if (oldPriority != newPriority) {
             appointment.setPriority(newPriority);
+            // Becoming urgent starts the "urgent since" clock; going back to normal clears it,
+            // so the patient returns to their booking-time place among normal patients.
+            appointment.setEscalatedAt(newPriority == Priority.EMERGENCY ? LocalDateTime.now() : null);
             appointmentRepository.save(appointment);
-            priorityAuditLogRepository.save(
-                    PriorityAuditLog.builder()
-                            .appointment(appointment)
-                            .changedBy(changedBy)
-                            .oldPriority(oldPriority)
-                            .newPriority(newPriority)
-                            .build()
-            );
-            recalculateQueue(appointment.getDoctor().getId());
+            priorityAuditLogRepository.save(PriorityAuditLog.builder()
+                    .appointment(appointment)
+                    .changedBy(changedBy)
+                    .oldPriority(oldPriority)
+                    .newPriority(newPriority)
+                    .build());
+            recalculateQueue(doctorId);
         }
-        Appointment refreshed = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found after override"));
-        return mapToResponse(refreshed);
+        return mapToResponse(appointment);
     }
 
     public QueueStatusResponse getQueueStatus(Long appointmentId,User requester)
@@ -195,6 +197,7 @@ public class AppointmentService {
                 .estimatedWaitTime(queueEntry.getEstimatedWaitTime())
                 .actualWaitTime(queueEntry.getActualWaitTime())
                 .date(queueEntry.getDate())
+                .priority(appointment.getPriority())
                 .build();
 
     }
@@ -269,20 +272,23 @@ public class AppointmentService {
         return stale.size() + forgotten.size();
     }
 
-    private List<Integer> recentActualWaitTimes(Long doctorId) {
-        return
-                queueRepository.findTop5ByDoctorIdAndActualWaitTimeIsNotNullOrderByDateDesc(doctorId)
-                        .stream()
-                        .map(QueueEntry::getActualWaitTime)
-                        .collect(Collectors.toList());
+    private List<Integer> recentConsultationMinutes(Long doctorId) {
+        return appointmentRepository
+                .findTop10ByDoctorIdAndStatusAndConsultationEndedAtIsNotNullOrderByConsultationEndedAtDesc(
+                        doctorId, AppointmentStatus.COMPLETED)
+                .stream()
+                .filter(a -> a.getConsultationStartedAt() != null)
+                .map(a -> (int) Duration.between(a.getConsultationStartedAt(), a.getConsultationEndedAt()).toMinutes())
+                .toList();
     }
-
     private void recalculateQueue(Long doctorId) {
         List<Appointment> pending =
                 appointmentRepository.findByDoctorIdAndStatus(doctorId, AppointmentStatus.PENDING);
         Comparator<Appointment> queueOrder = Comparator
                 .comparing((Appointment a) -> a.getPriority() == Priority.EMERGENCY ? 0 : 1)
-                .thenComparing(Appointment::getBookedAt);
+                .thenComparing(a -> a.getPriority() == Priority.EMERGENCY && a.getEscalatedAt() != null
+                        ? a.getEscalatedAt()
+                        : a.getBookedAt());
         MinHeap<Appointment> heap = new MinHeap<>(queueOrder);
         pending.forEach(heap::insert);
         int position = 1;
@@ -298,7 +304,7 @@ public class AppointmentService {
         // Positions changed, so every wait estimate must change with them.
         // Fetch history + no-show rate ONCE per recalculation, not once per patient.
         Doctor doctor = ordered.get(0).getDoctor();
-        List<Integer> recent = recentActualWaitTimes(doctorId);
+        List<Integer> recent = recentConsultationMinutes(doctorId);
         double noShowRate = noShowTrackerService.getNoShowRate(doctorId);
 
         int inProgress = appointmentRepository.existsByDoctorIdAndStatus(doctorId, AppointmentStatus.IN_PROGRESS) ? 1 : 0;
