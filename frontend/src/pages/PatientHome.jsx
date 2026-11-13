@@ -44,10 +44,16 @@ export default function PatientHome() {
       <section>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-2xl font-bold tracking-tight">Your visits</h2>
-          <Link to="/patient/book"
-            className="rounded-md bg-ward-700 px-4 py-2.5 font-semibold text-white hover:bg-ward-800">
-            Book a visit
-          </Link>
+          <div className="flex flex-wrap gap-3">
+           <Link to="/patient/profile"
+             className="rounded-md border border-ward-700 px-4 py-2.5 font-semibold text-ward-700 hover:bg-ward-50">
+             Health profile
+           </Link>
+           <Link to="/patient/book"
+             className="rounded-md bg-ward-700 px-4 py-2.5 font-semibold text-white hover:bg-ward-800">
+             Book a visit
+           </Link>
+          </div>
         </div>
 
         {active.length > 0 && (
