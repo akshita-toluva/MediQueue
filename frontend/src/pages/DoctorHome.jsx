@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import api, { getErrorMessage } from '../api/client'
+import { useLiveQueue } from '../api/useLiveQueue'
+import { CONDITION_LABELS, ALLERGY_LABELS } from '../health/labels'
 
 const fmtTime = (iso) => new Intl.DateTimeFormat('en-IN', { timeStyle: 'short' }).format(new Date(iso))
 const minutesSince = (iso, now) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
@@ -20,13 +22,24 @@ export default function DoctorHome() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+    // First load: setState only inside .then (a callback), never synchronously in the effect body
+    useEffect(() => {
+      let active = true
+      api.get('/api/doctors/me/queue')
+        .then(({ data }) => { if (active) setQueue(data) })
+        .catch((err) => { if (active) setError(getErrorMessage(err)) })
+      return () => { active = false }   // page left before the reply arrived -> ignore it
+    }, [])
 
   // Re-render every 30s so "In consultation for N min" stays current without asking the server
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [])
+
+// Live: the server sends only a "queue changed" signal; we re-fetch through the normal, authorised API.
+  // Must run before the early return below: hooks can't be called conditionally.
+  const live = useLiveQueue(queue ? [`/topic/doctor/${queue.doctorId}/queue`] : [], load)
 
   // Every button goes through here: lock the UI, call the API, then reload the queue.
   // Reload even on error: the server's state is the truth (e.g. someone else already called this patient).
@@ -63,7 +76,12 @@ export default function DoctorHome() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Today's queue</h2>
-          <p className="mt-1 text-sm text-muted">{waiting.length} waiting</p>
+          <p className="mt-1 text-sm text-muted">
+            {waiting.length} waiting ·{' '}
+            {live
+            ? <><span className="mr-1 inline-block h-2 w-2 rounded-full bg-green-600" />Live</>
+            : 'Live updates paused, use Refresh'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Paused = no NEW bookings; patients already waiting are still seen */}
@@ -93,6 +111,9 @@ export default function DoctorHome() {
                 In consultation for {minutesSince(current.consultationStartedAt, now)} min
                 (since {fmtTime(current.consultationStartedAt)})
               </p>
+              {/* key = appointment id: a new patient REMOUNTS this box, so the previous
+               patient's allergies can never be shown, not even for a moment */}
+              <HealthProfileNote key={current.appointmentId} appointmentId={current.appointmentId} />
             </div>
             <div className="flex items-center gap-3">
               {current.priority === 'EMERGENCY' && <span className="rounded bg-alert px-2 py-1 text-xs font-bold">URGENT</span>}
@@ -163,5 +184,40 @@ export default function DoctorHome() {
         </ol>
       )}
     </section>
+  )
+}
+// Self-reported conditions/allergies of the patient in the room.
+// The server answers only for this doctor's own appointments.
+function HealthProfileNote({ appointmentId }) {
+  const [profile, setProfile] = useState(null)   // null = loading
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    api.get(`/api/doctors/me/appointments/${appointmentId}/health-profile`)
+      .then(({ data }) => { if (active) setProfile(data) })
+      .catch(() => { if (active) setFailed(true) })
+    return () => { active = false }
+  }, [appointmentId])
+
+  if (failed) return <p className="mt-3 text-sm text-ward-100">Health profile unavailable.</p>
+  if (!profile) return <p className="mt-3 text-sm text-ward-100">Loading health profile…</p>
+
+  const conditions = profile.conditions.map((c) => CONDITION_LABELS[c] ?? c)
+  const allergies = profile.foodAllergies.map((c) => ALLERGY_LABELS[c] ?? c)
+
+  return (
+    <div className="mt-3 rounded-md bg-white/10 px-3 py-2 text-sm">
+      <p className="text-xs uppercase tracking-wide text-ward-100">Health profile · self-reported</p>
+      {/* "Not filled in" and "None reported" mean different things to a doctor */}
+      {profile.updatedAt === null ? (
+        <p className="mt-1">Not filled in by the patient.</p>
+      ) : (
+        <>
+          <p className="mt-1">Conditions: {conditions.length ? conditions.join(', ') : 'None reported'}</p>
+          <p>Food allergies: {allergies.length ? allergies.join(', ') : 'None reported'}</p>
+        </>
+      )}
+    </div>
   )
 }

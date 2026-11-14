@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import api, { getErrorMessage } from '../api/client'
+import { CONDITION_LABELS as CONDITIONS, ALLERGY_LABELS as ALLERGIES } from '../health/labels'
 
-// Codes must match the backend enums exactly; labels are what the patient reads
-const CONDITIONS = {
-  DIABETES: 'Diabetes', HYPERTENSION: 'High blood pressure', CHRONIC_KIDNEY_DISEASE: 'Chronic kidney disease',
-  HEART_DISEASE: 'Heart disease', HIGH_CHOLESTEROL: 'High cholesterol', CELIAC_DISEASE: 'Celiac disease',
-  PREGNANCY: 'Pregnancy',
-}
-const ALLERGIES = {
-  PEANUT: 'Peanut', TREE_NUT: 'Tree nuts', MILK: 'Milk', EGG: 'Egg', WHEAT: 'Wheat',
-  SOY: 'Soy', FISH: 'Fish', SHELLFISH: 'Shellfish', SESAME: 'Sesame',
-}
 const fmt = (iso) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 
 export default function HealthProfilePage() {
