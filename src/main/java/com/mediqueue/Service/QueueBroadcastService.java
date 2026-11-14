@@ -19,6 +19,17 @@ public class QueueBroadcastService {
         );
         messagingTemplate.convertAndSend("/topic/appointment/" + appointment.getId(), payload);
     }
+    // Doctor screen: a SIGNAL only ("your queue changed"), no patient data in the message.
+    // The page re-fetches GET /api/doctors/me/queue, which is already authorised.
+    public void broadcastDoctorQueueChanged(Long doctorId) {
+        messagingTemplate.convertAndSend("/topic/doctor/" + doctorId + "/queue",
+                new DoctorQueueChanged(doctorId));
+    }
+
+    public record DoctorQueueChanged(Long doctorId) {
+
+    }
+
     public record QueuePositionMessage(
             Long appointmentId,
             Integer queuePosition,

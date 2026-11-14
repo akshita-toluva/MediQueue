@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Client } from '@stomp/stompjs'
 import { tokenStorage } from './client'
 
-// ONE STOMP connection per page, one subscription per active visit.
+// ONE STOMP connection per page, one subscription per topic.
 // Returns whether live updates are currently flowing.
-export function useLiveQueue(appointmentIds, onUpdate) {
+export function useLiveQueue(topics, onUpdate) {
   const [connected, setConnected] = useState(false)
 
   // Keep the latest callback in a ref so a new callback doesn't force a reconnect
@@ -12,11 +12,11 @@ export function useLiveQueue(appointmentIds, onUpdate) {
   useEffect(() => { onUpdateRef.current = onUpdate }, [onUpdate])
 
   // Arrays are new objects every render; a sorted string is a stable dependency
-  const key = [...appointmentIds].sort().join(',')
+  const key = [...topics].sort().join('|')
 
   useEffect(() => {
     if (!key) return undefined              // nothing to watch -> no connection
-    const ids = key.split(',')
+    const list = key.split('|')
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
 
     const client = new Client({
@@ -29,12 +29,11 @@ export function useLiveQueue(appointmentIds, onUpdate) {
       onConnect: () => {
         setConnected(true)
         // Subscriptions don't survive a reconnect, so (re)subscribe here every time
-        ids.forEach((id) =>
-          client.subscribe(`/topic/appointment/${id}`, (msg) =>
-            onUpdateRef.current(JSON.parse(msg.body))))
+        list.forEach((topic) =>
+          client.subscribe(topic, (msg) => onUpdateRef.current(JSON.parse(msg.body))))
       },
       onWebSocketClose: () => setConnected(false),
-      // Server refused us (expired/revoked token, not our appointment): stop retrying
+      // Server refused us (expired/revoked token, not our topic): stop retrying
       onStompError: (frame) => {
         console.warn('Live updates refused:', frame.headers.message)
         setConnected(false)

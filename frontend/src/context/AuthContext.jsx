@@ -57,7 +57,7 @@ export function AuthProvider({ children }) {
   const value = { user, isLoggedIn: !!user, login, register, logout }
   return <AuthContext value={value}>{children}</AuthContext>
 }
-
+// eslint-disable-next-line react-refresh/only-export-components -- hook lives with its context on purpose; only affects dev hot-reload
 export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) throw new Error('useAuth must be used inside <AuthProvider>')

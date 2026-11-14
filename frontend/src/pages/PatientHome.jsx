@@ -38,7 +38,7 @@ export default function PatientHome() {
       .sort((a, b) => livePosition(a) - livePosition(b))
     const past = (appointments ?? []).filter((a) => !ACTIVE.includes(a.status))
 
-    const connected = useLiveQueue(active.map((a) => a.appointmentId), handleUpdate)
+    const connected = useLiveQueue(active.map((a) => `/topic/appointment/${a.appointmentId}`), handleUpdate)
 
     return (
       <section>
@@ -109,7 +109,16 @@ export default function PatientHome() {
       }
     }
 
-    useEffect(() => { refresh() }, [a.appointmentId])   // eslint-disable-line react-hooks/exhaustive-deps
+    // First load: setState only inside .then (a callback), never synchronously in the effect body.
+    // 'active' drops a reply that arrives after this card is gone.
+    useEffect(() => {
+      let active = true
+      api.get(`/api/appointments/${a.appointmentId}/queue-status`)
+        .then(({ data }) => { if (active) setStatus({ ...data, at: Date.now() }) })
+        .catch((err) => { if (active) setError(getErrorMessage(err)) })
+      return () => { active = false }
+    }, [a.appointmentId])
+
 
     // Two sources: the live push and the manual Refresh. Show whichever arrived last.
     const latest = update && (!status || update.at > status.at) ? update : status

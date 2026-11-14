@@ -299,6 +299,8 @@ public class AppointmentService {
             ordered.add(next);
         }
         appointmentRepository.saveAll(ordered);
+        // BEFORE the early return: the doctor's screen must refresh even when the queue just became empty
+        afterCommit(() -> queueBroadcastService.broadcastDoctorQueueChanged(doctorId));
         if (ordered.isEmpty()) return;
 
         // Positions changed, so every wait estimate must change with them.
@@ -431,5 +433,16 @@ public class AppointmentService {
         recalculateQueue(doctor.getId());   // everyone behind moves up one
         broadcastAfterCommit(next);         // the called patient's card learns "With the doctor"
         return mapToResponse(next);
+    }
+    // Send only after the DB commit: a rolled-back change must never reach a screen
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() { action.run(); }
+            });
+        } else {
+            action.run();
+        }
     }
 }
