@@ -11,12 +11,15 @@ public class WaitTimeEstimationService {
     private static final List<String> EMERGENCY_KEYWORDS = List.of(
             "chest pain",
             "severe bleeding",
+            "heavy bleeding",
             "difficulty breathing",
+            "difficulty in breathing",
             "loss of consciousness",
             "unconscious",
             "can't breathe",
             "cannot breathe"
     );
+
     private static final int MIN_SAMPLES = 3;
 
     public int predictWaitTime(int patientsAhead, int avgConsultationTime,
