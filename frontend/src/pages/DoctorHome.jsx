@@ -12,6 +12,7 @@ export default function DoctorHome() {
   const [busy, setBusy] = useState(false)               // one action at a time: all buttons disabled meanwhile
   const [confirmNoShow, setConfirmNoShow] = useState(null) // appointmentId waiting for a second click
   const [now, setNow] = useState(() => Date.now())
+  const [profileRefresh, setProfileRefresh] = useState(0)   // bumped ONLY by the Refresh button
 
   const load = useCallback(async () => {
     try {
@@ -90,7 +91,7 @@ export default function DoctorHome() {
               available ? 'border-line bg-white text-ink hover:bg-paper' : 'border-alert bg-red-50 text-alert'}`}>
             {available ? 'Pause new bookings' : 'Bookings paused · Resume'}
           </button>
-          <button onClick={load} disabled={busy}
+            <button onClick={() => { load(); setProfileRefresh((n) => n + 1) }} disabled={busy}
             className="rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-paper disabled:opacity-60">
             Refresh
           </button>
@@ -113,7 +114,7 @@ export default function DoctorHome() {
               </p>
               {/* key = appointment id: a new patient REMOUNTS this box, so the previous
                patient's allergies can never be shown, not even for a moment */}
-              <HealthProfileNote key={current.appointmentId} appointmentId={current.appointmentId} />
+              <HealthProfileNote key={current.appointmentId} appointmentId={current.appointmentId} refreshToken={profileRefresh} />
             </div>
             <div className="flex items-center gap-3">
               {current.priority === 'EMERGENCY' && <span className="rounded bg-alert px-2 py-1 text-xs font-bold">URGENT</span>}
@@ -186,11 +187,18 @@ export default function DoctorHome() {
     </section>
   )
 }
-// Self-reported conditions/allergies of the patient in the room.
-// The server answers only for this doctor's own appointments.
-function HealthProfileNote({ appointmentId }) {
+
+const fmtDate = (iso) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+
+// Profile of the patient in the room. The doctor can confirm it (and correct ticks) -> "verified".
+// Only verified data may feed the diet AI later.
+function HealthProfileNote({ appointmentId, refreshToken }) {
   const [profile, setProfile] = useState(null)   // null = loading
   const [failed, setFailed] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ conditions: [], foodAllergies: [] })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -198,26 +206,95 @@ function HealthProfileNote({ appointmentId }) {
       .then(({ data }) => { if (active) setProfile(data) })
       .catch(() => { if (active) setFailed(true) })
     return () => { active = false }
-  }, [appointmentId])
+  }, [appointmentId, refreshToken])
+
+  function startReview() {
+    setDraft({ conditions: profile.conditions, foodAllergies: profile.foodAllergies })
+    setError('')
+    setEditing(true)
+  }
+
+  const toggle = (field, code) => setDraft((d) => ({
+    ...d,
+    [field]: d[field].includes(code) ? d[field].filter((c) => c !== code) : [...d[field], code],
+  }))
+
+  async function confirm() {
+    setSaving(true)
+    setError('')
+    try {
+      const { data } = await api.put(`/api/doctors/me/appointments/${appointmentId}/health-profile`, draft)
+      setProfile(data)
+      setEditing(false)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (failed) return <p className="mt-3 text-sm text-ward-100">Health profile unavailable.</p>
   if (!profile) return <p className="mt-3 text-sm text-ward-100">Loading health profile…</p>
 
-  const conditions = profile.conditions.map((c) => CONDITION_LABELS[c] ?? c)
-  const allergies = profile.foodAllergies.map((c) => ALLERGY_LABELS[c] ?? c)
+  const label = (map, list) => list.map((c) => map[c] ?? c)
 
   return (
     <div className="mt-3 rounded-md bg-white/10 px-3 py-2 text-sm">
-      <p className="text-xs uppercase tracking-wide text-ward-100">Health profile · self-reported</p>
-      {/* "Not filled in" and "None reported" mean different things to a doctor */}
-      {profile.updatedAt === null ? (
-        <p className="mt-1">Not filled in by the patient.</p>
+      <p className="text-xs uppercase tracking-wide text-ward-100">
+        Health profile ·{' '}
+        {profile.verified
+          ? <span className="text-board">verified by {profile.verifiedByName} · {fmtDate(profile.verifiedAt)}</span>
+          : 'self-reported, not verified'}
+      </p>
+
+      {editing ? (
+        <>
+          <ReviewGroup title="Conditions" options={CONDITION_LABELS} selected={draft.conditions}
+            onToggle={(c) => toggle('conditions', c)} />
+          <ReviewGroup title="Food allergies" options={ALLERGY_LABELS} selected={draft.foodAllergies}
+            onToggle={(c) => toggle('foodAllergies', c)} />
+          {error && <p role="alert" className="mt-2 text-red-200">{error}</p>}
+          <div className="mt-3 flex gap-2">
+            <button onClick={confirm} disabled={saving}
+              className="rounded-md bg-board px-3 py-1.5 font-semibold text-ward-950 disabled:opacity-60">
+              {saving ? 'Saving…' : 'Confirm & verify'}
+            </button>
+            <button onClick={() => setEditing(false)} disabled={saving} className="px-2 py-1.5 text-ward-100 hover:underline">
+              Cancel
+            </button>
+          </div>
+        </>
       ) : (
         <>
-          <p className="mt-1">Conditions: {conditions.length ? conditions.join(', ') : 'None reported'}</p>
-          <p>Food allergies: {allergies.length ? allergies.join(', ') : 'None reported'}</p>
+          {profile.updatedAt === null ? (
+            <p className="mt-1">Not filled in by the patient.</p>
+          ) : (
+            <>
+              <p className="mt-1">Conditions: {profile.conditions.length ? label(CONDITION_LABELS, profile.conditions).join(', ') : 'None reported'}</p>
+              <p>Food allergies: {profile.foodAllergies.length ? label(ALLERGY_LABELS, profile.foodAllergies).join(', ') : 'None reported'}</p>
+            </>
+          )}
+          <button onClick={startReview} className="mt-2 rounded-md border border-white/40 px-3 py-1 text-xs hover:bg-white/10">
+            {profile.verified ? 'Review again' : 'Review & verify'}
+          </button>
         </>
       )}
     </div>
+  )
+}
+
+function ReviewGroup({ title, options, selected, onToggle }) {
+  return (
+    <fieldset className="mt-2">
+      <legend className="text-xs text-ward-100">{title}</legend>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        {Object.entries(options).map(([code, text]) => (
+          <label key={code} className="flex items-center gap-2">
+            <input type="checkbox" checked={selected.includes(code)} onChange={() => onToggle(code)} className="accent-board" />
+            {text}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }

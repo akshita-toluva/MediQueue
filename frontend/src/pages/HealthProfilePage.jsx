@@ -12,6 +12,7 @@ export default function HealthProfilePage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [verification, setVerification] = useState(null)   // { verified, verifiedAt, verifiedByName }
 
   useEffect(() => {
     api.get('/api/patients/me/health-profile')
@@ -19,6 +20,7 @@ export default function HealthProfilePage() {
         setConditions(data.conditions)
         setAllergies(data.foodAllergies)
         setUpdatedAt(data.updatedAt)
+        setVerification({ verified: data.verified, verifiedAt: data.verifiedAt, verifiedByName: data.verifiedByName })
       })
       .catch((err) => setError(getErrorMessage(err)))
   }, [])
@@ -39,6 +41,7 @@ export default function HealthProfilePage() {
       setConditions(data.conditions)
       setAllergies(data.foodAllergies)
       setUpdatedAt(data.updatedAt)
+      setVerification({ verified: data.verified, verifiedAt: data.verifiedAt, verifiedByName: data.verifiedByName })
       setSaved(true)
     } catch (err) {
       setError(getErrorMessage(err))
@@ -54,6 +57,13 @@ export default function HealthProfilePage() {
       <p className="mt-2 text-muted">
         Self-reported. Your doctor sees this only for visits booked with them. Leave everything unticked if none apply.
       </p>
+      {verification && (
+        <p className={`mt-3 text-sm ${verification.verified ? 'text-green-700' : 'text-muted'}`}>
+         {verification.verified
+         ? `✓ Verified by ${verification.verifiedByName} on ${fmt(verification.verifiedAt)}. Changing anything will need a new verification.`
+         : 'Not yet verified by a doctor. Your doctor confirms it during your visit.'}
+        </p>
+      )}
 
       {error && <p role="alert" className="mt-5 border-l-4 border-alert bg-red-50 px-3 py-2 text-sm text-alert">{error}</p>}
       {conditions === null && !error && <p className="mt-6 text-muted">Loading your profile…</p>}
