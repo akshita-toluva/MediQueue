@@ -10,5 +10,8 @@ import java.util.Set;
 public record HealthProfileResponse(
         Set<MedicalCondition> conditions,
         Set<FoodAllergy> foodAllergies,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean verified,
+        LocalDateTime verifiedAt,
+        String verifiedByName
 ) {}

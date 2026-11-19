@@ -41,4 +41,13 @@ public class PatientHealthProfile {
     // mark this row dirty, so @PreUpdate would silently not fire.
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // Who confirmed this profile during a visit. null = self-reported only.
+    // Cleared automatically when the patient changes anything (see HealthProfileService).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "verified_by")
+    private User verifiedBy;
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
 }
