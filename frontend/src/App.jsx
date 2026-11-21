@@ -6,11 +6,11 @@ import AppLayout from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import PatientHome from './pages/PatientHome'
-import PlaceholderPage from './pages/PlaceholderPage'
 import NotFoundPage from './pages/NotFoundPage'
 import BookAppointmentPage from './pages/BookAppointmentPage'
 import DoctorHome from './pages/DoctorHome'
 import HealthProfilePage from './pages/HealthProfilePage'
+import AdminHome from './pages/AdminHome'
 
 // "/" sends each user to the right place
 function HomeRedirect() {
@@ -42,7 +42,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<AppLayout />}>
-          <Route path="/admin" element={<PlaceholderPage title="Admin dashboard" note="Charts arrive with the Admin portal." />} />
+        <Route path="/admin" element={<AdminHome />} />
         </Route>
       </Route>
 
