@@ -8,6 +8,7 @@ import com.mediqueue.dto.NoShowRateResponse;
 import com.mediqueue.entity.AppointmentStatus;
 import com.mediqueue.repository.AppointmentRepository;
 import com.mediqueue.repository.DoctorRepository;
+import com.mediqueue.dto.AdminDoctorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,5 +94,12 @@ public class AdminService {
             throw new IllegalArgumentException("days must be between 1 and " + MAX_DAYS);
         }
         return LocalDate.now().minusDays(days).atStartOfDay();
+    }
+
+    public List<AdminDoctorResponse> listDoctors() {
+        return doctorRepository.findAllWithUserOrdered().stream()
+                .map(d -> new AdminDoctorResponse(d.getId(), d.getUser().getName(), d.getUser().getEmail(),
+                        d.getDepartment(), d.isAvailable(), d.getAvgConsultationTime()))
+                .toList();
     }
 }

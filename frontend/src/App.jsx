@@ -11,6 +11,7 @@ import BookAppointmentPage from './pages/BookAppointmentPage'
 import DoctorHome from './pages/DoctorHome'
 import HealthProfilePage from './pages/HealthProfilePage'
 import AdminHome from './pages/AdminHome'
+import AdminDoctorsPage from './pages/AdminDoctorsPage'
 
 // "/" sends each user to the right place
 function HomeRedirect() {
@@ -43,6 +44,7 @@ export default function App() {
       <Route element={<ProtectedRoute roles={['ADMIN']} />}>
         <Route element={<AppLayout />}>
         <Route path="/admin" element={<AdminHome />} />
+        <Route path="/admin/doctors" element={<AdminDoctorsPage />} />
         </Route>
       </Route>
 

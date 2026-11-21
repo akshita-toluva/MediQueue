@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.mediqueue.dto.AdminDoctorResponse;
 
 import java.util.List;
 
@@ -45,5 +46,11 @@ public class AdminController {
     public ResponseEntity<List<NoShowRateResponse>> getNoShowRates(
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity.ok(adminService.getNoShowRates(days));
+    }
+
+    // GET /api/admin/doctors : every doctor, grouped by department. ADMIN-only via the class guard.
+    @GetMapping("/doctors")
+    public ResponseEntity<List<AdminDoctorResponse>> listDoctors() {
+        return ResponseEntity.ok(adminService.listDoctors());
     }
 }

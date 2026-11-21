@@ -96,6 +96,14 @@ public class AuthService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ConflictException("Email already registered");
         }
+        // Validate BEFORE saving anything: a bad doctor request never touches the DB
+        String department = null;
+        if (role == Role.DOCTOR) {
+            if (request.getAvgConsultationTime() == null) {
+                throw new IllegalArgumentException("Doctors must provide department and avgConsultationTime");
+            }
+            department = canonicalDepartment(request.getDepartment());
+        }
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
@@ -105,12 +113,9 @@ public class AuthService {
         userRepository.save(user);
 
         if (role == Role.DOCTOR) {
-            if (request.getDepartment() == null || request.getAvgConsultationTime() == null) {
-                throw new IllegalArgumentException("Doctors must provide department and avgConsultationTime");
-            }
             Doctor doctor = Doctor.builder()
                     .user(user)
-                    .department(request.getDepartment())
+                    .department(department)
                     .available(true)
                     .avgConsultationTime(request.getAvgConsultationTime())
                     .build();
@@ -118,5 +123,18 @@ public class AuthService {
             departmentAvailabilityCache.markAvailable(doctor.getDepartment(), doctor.getId());
         }
         return user;
+    }
+
+    // " cardiology " + existing "Cardiology" -> "Cardiology". Otherwise the department splits
+    // in two: two dashboard rows, two cache keys, patients see half the doctors.
+    private String canonicalDepartment(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException("Doctors must provide department and avgConsultationTime");
+        }
+        String cleaned = raw.trim().replaceAll("\\s+", " ");
+        return doctorRepository.findDistinctDepartments().stream()
+                .filter(existing -> existing.equalsIgnoreCase(cleaned))
+                .findFirst()
+                .orElse(cleaned);
     }
 }
