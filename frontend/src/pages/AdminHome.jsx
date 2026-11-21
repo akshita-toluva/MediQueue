@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import api, { getErrorMessage } from '../api/client'
+import { Link } from 'react-router'
 
 // Colour-blind-validated pair on a white surface (blue / orange). Text never uses these colours.
 const SERIES_1 = '#2a78d6'
@@ -44,7 +45,11 @@ export default function AdminHome() {
 
   return (
     <section>
-      <h2 className="text-2xl font-bold tracking-tight">Hospital dashboard</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight">Hospital dashboard</h2>
+        <Link to="/admin/doctors" className="text-sm text-ward-700 underline">Manage doctors →</Link>
+      </div>
+
       {error && <p role="alert" className="mt-5 border-l-4 border-alert bg-red-50 px-3 py-2 text-sm text-alert">{error}</p>}
 
       <Card title="Department load · today" subtitle="Patients waiting or in consultation vs doctors accepting bookings">

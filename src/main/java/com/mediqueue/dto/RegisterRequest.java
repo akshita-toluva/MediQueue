@@ -1,10 +1,7 @@
 package com.mediqueue.dto;
 
 import com.mediqueue.entity.Role;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 @Data
@@ -26,7 +23,8 @@ public class RegisterRequest {
 
     private String department;
 
+    @Min(value = 1, message = "Average consultation time must be 1 to 120 minutes")
+    @Max(value = 120, message = "Average consultation time must be 1 to 120 minutes")
     private Integer avgConsultationTime;
-
 
 }

@@ -31,4 +31,11 @@ public interface DoctorRepository extends JpaRepository<Doctor,Long> {
             GROUP BY d.department
             """)
     List<DoctorCountByDepartment> countDoctorsByDepartment();
+
+    // JOIN FETCH loads each doctor's user in the SAME query (no N+1: one query instead of 1 + N)
+    @Query("SELECT d FROM Doctor d JOIN FETCH d.user u ORDER BY d.department, u.name")
+    List<Doctor> findAllWithUserOrdered();
+
+    @Query("SELECT DISTINCT d.department FROM Doctor d")
+    List<String> findDistinctDepartments();
 }
