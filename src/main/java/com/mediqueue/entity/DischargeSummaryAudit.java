@@ -35,6 +35,11 @@ public class DischargeSummaryAudit {
     @Column(name = "previous_follow_up", length = 2000)
     private String previousFollowUp;
 
+    // Which AI suggestion the patient actually saw in this view (null = none shown)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shown_diet_log_id")
+    private AiGenerationLog shownDietLog;
+
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 

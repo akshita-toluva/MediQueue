@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import api, { getErrorMessage } from '../api/client'
 import { useLiveQueue } from '../api/useLiveQueue'
 import { CONDITION_LABELS, ALLERGY_LABELS } from '../health/labels'
+import DischargeSummaryEditor from '../components/DischargeSummaryEditor'
 
 const fmtTime = (iso) => new Intl.DateTimeFormat('en-IN', { timeStyle: 'short' }).format(new Date(iso))
 const minutesSince = (iso, now) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000))
@@ -114,7 +115,8 @@ export default function DoctorHome() {
               </p>
               {/* key = appointment id: a new patient REMOUNTS this box, so the previous
                patient's allergies can never be shown, not even for a moment */}
-              <HealthProfileNote key={current.appointmentId} appointmentId={current.appointmentId} refreshToken={profileRefresh} />
+               <HealthProfileNote key={current.appointmentId} appointmentId={current.appointmentId} refreshToken={profileRefresh} />
+                <DischargeSummaryEditor key={`summary-${current.appointmentId}`} appointmentId={current.appointmentId} />
             </div>
             <div className="flex items-center gap-3">
               {current.priority === 'EMERGENCY' && <span className="rounded bg-alert px-2 py-1 text-xs font-bold">URGENT</span>}

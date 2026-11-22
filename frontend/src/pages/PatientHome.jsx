@@ -79,12 +79,19 @@ export default function PatientHome() {
             <h3 className="mt-10 mb-3 font-semibold">Past visits</h3>
             <ul className="divide-y divide-line rounded-xl border border-line bg-white">
               {past.map((a) => (
-                <li key={a.appointmentId} className="flex flex-wrap justify-between gap-2 px-4 py-3 text-sm">
-                  <span><span className="font-semibold">{a.doctorName}</span> · {a.department}</span>
-                  <span className="text-muted">{fmt(a.bookedAt)} · {STATUS_LABEL[a.status] ?? a.status}</span>
-                </li>
+              <li key={a.appointmentId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span><span className="font-semibold">{a.doctorName}</span> · {a.department}</span>
+                <span className="flex flex-wrap items-center gap-3">
+                <span className="text-muted">{fmt(a.bookedAt)} · {STATUS_LABEL[a.status] ?? a.status}</span>
+                {a.status === 'COMPLETED' && (
+                <Link to={`/patient/visits/${a.appointmentId}/summary`} className="font-semibold text-ward-700 underline">
+                   Discharge summary
+                </Link>
+                )}
+                </span>
+              </li>
               ))}
-            </ul>
+           </ul>
           </>
         )}
       </section>
