@@ -1,6 +1,8 @@
 package com.mediqueue.controller;
 
+import com.mediqueue.Service.DischargeSummaryService;
 import com.mediqueue.Service.HealthProfileService;
+import com.mediqueue.dto.DischargeSummaryResponse;
 import com.mediqueue.dto.HealthProfileRequest;
 import com.mediqueue.dto.HealthProfileResponse;
 import com.mediqueue.entity.User;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class PatientController {
 
     private final HealthProfileService healthProfileService;
+    private final DischargeSummaryService dischargeSummaryService;
 
     @GetMapping("/health-profile")
     public ResponseEntity<HealthProfileResponse> getProfile(@AuthenticationPrincipal User currentUser) {
@@ -29,5 +32,11 @@ public class PatientController {
     public ResponseEntity<HealthProfileResponse> saveProfile(@AuthenticationPrincipal User currentUser,
                                                              @Valid @RequestBody HealthProfileRequest request) {
         return ResponseEntity.ok(healthProfileService.saveMine(currentUser, request));
+    }
+
+    @GetMapping("/appointments/{appointmentId}/discharge-summary")
+    public ResponseEntity<DischargeSummaryResponse> getDischargeSummary(@AuthenticationPrincipal User currentUser,
+                                                                        @PathVariable Long appointmentId) {
+        return ResponseEntity.ok(dischargeSummaryService.getForPatient(currentUser, appointmentId));
     }
 }
