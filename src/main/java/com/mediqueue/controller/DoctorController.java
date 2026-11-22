@@ -1,10 +1,9 @@
 package com.mediqueue.controller;
 
 import com.mediqueue.Service.AppointmentService;
+import com.mediqueue.Service.DischargeSummaryService;
 import com.mediqueue.Service.HealthProfileService;
-import com.mediqueue.dto.AppointmentResponse;
-import com.mediqueue.dto.DoctorQueueResponse;
-import com.mediqueue.dto.HealthProfileRequest;
+import com.mediqueue.dto.*;
 import com.mediqueue.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import com.mediqueue.dto.HealthProfileResponse;
+import com.mediqueue.dto.DischargeSummaryRequest;
+import com.mediqueue.dto.DischargeSummaryResponse;
 
 
 @RestController
@@ -23,6 +23,7 @@ public class DoctorController {
 
     private final AppointmentService appointmentService;
     private final HealthProfileService healthProfileService;
+    private final DischargeSummaryService dischargeSummaryService;
 
     @GetMapping("/queue")
     public ResponseEntity<DoctorQueueResponse> myQueue(@AuthenticationPrincipal User currentUser) {
@@ -45,5 +46,18 @@ public class DoctorController {
                                                                             @PathVariable Long appointmentId,
                                                                             @Valid @RequestBody HealthProfileRequest request) {
         return ResponseEntity.ok(healthProfileService.verifyForDoctor(currentUser, appointmentId, request));
+    }
+
+    @PutMapping("/appointments/{appointmentId}/discharge-summary")
+    public ResponseEntity<DischargeSummaryResponse> saveDischargeSummary(@AuthenticationPrincipal User currentUser,
+                                                                         @PathVariable Long appointmentId,
+                                                                         @Valid @RequestBody DischargeSummaryRequest request) {
+        return ResponseEntity.ok(dischargeSummaryService.saveForDoctor(currentUser, appointmentId, request));
+    }
+
+    @GetMapping("/appointments/{appointmentId}/discharge-summary")
+    public ResponseEntity<DischargeSummaryResponse> getDischargeSummary(@AuthenticationPrincipal User currentUser,
+                                                                        @PathVariable Long appointmentId) {
+        return ResponseEntity.ok(dischargeSummaryService.getForDoctor(currentUser, appointmentId));
     }
 }
