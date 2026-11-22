@@ -1,6 +1,7 @@
 package com.mediqueue.controller;
 
 import com.mediqueue.Service.AppointmentService;
+import com.mediqueue.Service.DietSuggestionService;
 import com.mediqueue.Service.DischargeSummaryService;
 import com.mediqueue.Service.HealthProfileService;
 import com.mediqueue.dto.*;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.mediqueue.dto.DischargeSummaryRequest;
 import com.mediqueue.dto.DischargeSummaryResponse;
+import com.mediqueue.dto.DietApprovalRequest;
 
 
 @RestController
@@ -24,6 +26,7 @@ public class DoctorController {
     private final AppointmentService appointmentService;
     private final HealthProfileService healthProfileService;
     private final DischargeSummaryService dischargeSummaryService;
+    private final DietSuggestionService dietSuggestionService;
 
     @GetMapping("/queue")
     public ResponseEntity<DoctorQueueResponse> myQueue(@AuthenticationPrincipal User currentUser) {
@@ -59,5 +62,18 @@ public class DoctorController {
     public ResponseEntity<DischargeSummaryResponse> getDischargeSummary(@AuthenticationPrincipal User currentUser,
                                                                         @PathVariable Long appointmentId) {
         return ResponseEntity.ok(dischargeSummaryService.getForDoctor(currentUser, appointmentId));
+    }
+
+    @PostMapping("/appointments/{appointmentId}/discharge-summary/diet-suggestion")
+    public ResponseEntity<DischargeSummaryResponse> generateDietSuggestion(@AuthenticationPrincipal User currentUser,
+                                                                           @PathVariable Long appointmentId) {
+        return ResponseEntity.ok(dietSuggestionService.generate(currentUser, appointmentId));
+    }
+
+    @PutMapping("/appointments/{appointmentId}/discharge-summary/diet-suggestion/approval")
+    public ResponseEntity<DischargeSummaryResponse> approveDietSuggestion(@AuthenticationPrincipal User currentUser,
+                                                                          @PathVariable Long appointmentId,
+                                                                          @Valid @RequestBody DietApprovalRequest request) {
+        return ResponseEntity.ok(dischargeSummaryService.approveDiet(currentUser, appointmentId, request.generationId()));
     }
 }

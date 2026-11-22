@@ -12,6 +12,7 @@ import com.mediqueue.exception.UnauthorizedActionException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.mediqueue.exception.RateLimitExceededException;
+import com.mediqueue.exception.AiUnavailableException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.HashMap;
@@ -83,6 +84,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", ex.getMessage()));
+    }
+
+    // 503: the AI is down, not our server. Generic text: the real reason is in ai_generation_log.
+    @ExceptionHandler(AiUnavailableException.class)
+    public ResponseEntity<Map<String, String>> handleAiUnavailable(AiUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("error", "Diet suggestions are unavailable right now. The discharge summary itself is saved."));
     }
 
     // 429 + Retry-After: the standard way to tell a client "slow down, try again in N seconds".

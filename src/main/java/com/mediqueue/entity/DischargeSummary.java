@@ -31,6 +31,19 @@ public class DischargeSummary {
     @Column(name = "follow_up_instructions", length = 2000)
     private String followUpInstructions;
 
+    // Day 26: the AI suggestion currently attached. Its text lives in the log row (one source of truth).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "diet_suggestion_log_id")
+    private AiGenerationLog dietSuggestionLog;
+
+    // Set only when the doctor approves THAT suggestion; cleared on every regeneration
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "diet_approved_by")
+    private User dietApprovedBy;
+
+    @Column(name = "diet_approved_at")
+    private LocalDateTime dietApprovedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

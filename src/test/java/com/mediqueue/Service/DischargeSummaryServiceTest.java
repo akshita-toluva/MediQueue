@@ -31,6 +31,8 @@ class DischargeSummaryServiceTest {
     @Mock AppointmentRepository appointmentRepository;
     @Mock DoctorRepository doctorRepository;
     @InjectMocks DischargeSummaryService service;
+    @Mock com.mediqueue.repository.PatientHealthProfileRepository profileRepository;
+    @Mock com.mediqueue.repository.AiGenerationLogRepository aiLogRepository;
 
     private User doctorUser;
     private Doctor doctor;
@@ -150,5 +152,60 @@ class DischargeSummaryServiceTest {
         DischargeSummaryAudit audit = capturedAudit();
         assertEquals(DischargeAuditAction.VIEWED_BY_PATIENT, audit.getAction());
         assertEquals(20L, audit.getActor().getId());
+    }
+    @Test
+    void cannotGenerateWithUnverifiedProfile() {
+        appointment.setStatus(AppointmentStatus.IN_PROGRESS);
+        when(doctorRepository.findByUserId(10L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(100L)).thenReturn(Optional.of(appointment));
+        when(summaryRepository.findByAppointmentId(100L)).thenReturn(Optional.of(existingSummary("x")));
+        PatientHealthProfile unverified = new PatientHealthProfile();   // verifiedAt == null
+        when(profileRepository.findByPatientId(20L)).thenReturn(Optional.of(unverified));
+
+        assertThrows(ConflictException.class, () -> service.prepareDietPrompt(doctorUser, 100L));
+    }
+
+    @Test
+    void approvingAStaleSuggestionIs409() {
+        stubDoctorLookups();
+        DischargeSummary s = existingSummary("x");
+        s.setDietSuggestionLog(AiGenerationLog.builder().id(7L).output("- new text").build());
+        when(summaryRepository.findByAppointmentId(100L)).thenReturn(Optional.of(s));
+
+        // The doctor read suggestion 6, but 7 is current
+        assertThrows(ConflictException.class, () -> service.approveDiet(doctorUser, 100L, 6L));
+        assertNull(s.getDietApprovedAt());
+    }
+
+    @Test
+    void patientDoesNotSeeUnapprovedSuggestion() {
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        DischargeSummary s = existingSummary("x");
+        s.setDietSuggestionLog(AiGenerationLog.builder().id(7L).output("- Eat oats").build());
+        when(appointmentRepository.findById(100L)).thenReturn(Optional.of(appointment));
+        when(summaryRepository.findByAppointmentId(100L)).thenReturn(Optional.of(s));
+
+        DischargeSummaryResponse r = service.getForPatient(patient, 100L);
+
+        assertNull(r.dietSuggestion());
+        assertNull(r.dietDisclaimer());
+        assertNull(capturedAudit().getShownDietLog());
+    }
+
+    @Test
+    void patientSeesApprovedSuggestionWithDisclaimerAndItIsLogged() {
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        DischargeSummary s = existingSummary("x");
+        AiGenerationLog log = AiGenerationLog.builder().id(7L).output("- Eat oats").build();
+        s.setDietSuggestionLog(log);
+        s.setDietApprovedAt(java.time.LocalDateTime.now());
+        when(appointmentRepository.findById(100L)).thenReturn(Optional.of(appointment));
+        when(summaryRepository.findByAppointmentId(100L)).thenReturn(Optional.of(s));
+
+        DischargeSummaryResponse r = service.getForPatient(patient, 100L);
+
+        assertEquals("- Eat oats", r.dietSuggestion());
+        assertEquals(DischargeSummaryService.DIET_DISCLAIMER, r.dietDisclaimer());
+        assertEquals(7L, capturedAudit().getShownDietLog().getId());
     }
 }
