@@ -1,9 +1,7 @@
 package com.mediqueue.controller;
 
 import com.mediqueue.Service.AdminService;
-import com.mediqueue.dto.DepartmentLoadResponse;
-import com.mediqueue.dto.HourlyCount;
-import com.mediqueue.dto.NoShowRateResponse;
+import com.mediqueue.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,7 +9,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.mediqueue.dto.AdminDoctorResponse;
 
 import java.util.List;
 
@@ -52,5 +49,11 @@ public class AdminController {
     @GetMapping("/doctors")
     public ResponseEntity<List<AdminDoctorResponse>> listDoctors() {
         return ResponseEntity.ok(adminService.listDoctors());
+    }
+
+    // GET /api/admin/wait-accuracy?days=30 : how close our booking-time estimates were to reality
+    @GetMapping("/wait-accuracy")
+    public ResponseEntity<WaitAccuracyResponse> getWaitAccuracy(@RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(adminService.getWaitAccuracy(days));
     }
 }

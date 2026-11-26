@@ -3,7 +3,10 @@ package com.mediqueue.Service;
 import com.mediqueue.entity.Priority;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class WaitTimeEstimationService {
@@ -18,6 +21,20 @@ public class WaitTimeEstimationService {
             "unconscious",
             "can't breathe",
             "cannot breathe"
+    );
+
+    // Word order varies ("pain in chest", "bleeding is heavy"): each set = words that must ALL appear, any order.
+    // Over-triage is the safe failure: a doctor can mark it normal in one (logged) click.
+    private static final List<Set<String>> EMERGENCY_WORD_SETS = List.of(
+            Set.of("chest", "pain"),
+            Set.of("chest", "pains"),
+            Set.of("chest", "tightness"),
+            Set.of("bleeding", "severe"),
+            Set.of("bleeding", "heavy"),
+            Set.of("breathing", "difficulty"),
+            Set.of("breathing", "trouble"),
+            Set.of("breathe", "unable"),
+            Set.of("consciousness", "lost")
     );
 
     private static final int MIN_SAMPLES = 3;
@@ -48,11 +65,17 @@ public class WaitTimeEstimationService {
         if (symptomDescription == null) {
             return Priority.NORMAL;
         }
+        // Check 1 (unchanged): exact phrases, ignoring spaces/punctuation ("ChestPain", "chest-pain")
         String text = lettersOnly(symptomDescription);
-        boolean isEmergency = EMERGENCY_KEYWORDS.stream()
+        boolean phraseMatch = EMERGENCY_KEYWORDS.stream()
                 .map(WaitTimeEstimationService::lettersOnly)
                 .anyMatch(text::contains);
-        return isEmergency ? Priority.EMERGENCY : Priority.NORMAL;
+        // Check 2 (new): the same danger described in a different word order
+        Set<String> words = Arrays.stream(symptomDescription.toLowerCase().split("[^a-z]+"))
+                .filter(w -> !w.isEmpty())
+                .collect(Collectors.toSet());
+        boolean wordSetMatch = EMERGENCY_WORD_SETS.stream().anyMatch(words::containsAll);
+        return (phraseMatch || wordSetMatch) ? Priority.EMERGENCY : Priority.NORMAL;
     }
 
     private static String lettersOnly(String s) {

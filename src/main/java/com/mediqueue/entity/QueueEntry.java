@@ -37,6 +37,9 @@ public class QueueEntry {
     @Column(name = "actual_wait_time")
     private Integer actualWaitTime;
 
+    @Column(name = "initial_estimated_wait")
+    private Integer initialEstimatedWait;
+
     @Column(nullable = false)
     private LocalDate date;
 

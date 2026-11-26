@@ -1,26 +1,17 @@
 package com.mediqueue.Service;
 
-import com.mediqueue.dto.DepartmentCount;
-import com.mediqueue.dto.DepartmentLoadResponse;
-import com.mediqueue.dto.DoctorCountByDepartment;
-import com.mediqueue.dto.HourlyCount;
-import com.mediqueue.dto.NoShowRateResponse;
+import com.mediqueue.dto.*;
 import com.mediqueue.entity.AppointmentStatus;
 import com.mediqueue.repository.AppointmentRepository;
 import com.mediqueue.repository.DoctorRepository;
-import com.mediqueue.dto.AdminDoctorResponse;
+import com.mediqueue.repository.QueueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +24,7 @@ public class AdminService {
 
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
+    private final QueueRepository queueRepository;
 
     public List<DepartmentLoadResponse> getDepartmentLoad() {
         // TODAY only. Nothing expires old PENDING rows, so counting all-time PENDING would
@@ -101,5 +93,20 @@ public class AdminService {
                 .map(d -> new AdminDoctorResponse(d.getId(), d.getUser().getName(), d.getUser().getEmail(),
                         d.getDepartment(), d.isAvailable(), d.getAvgConsultationTime()))
                 .toList();
+    }
+
+    public WaitAccuracyResponse getWaitAccuracy(int days) {
+        List<WaitSample> samples = queueRepository.findWaitSamplesSince(since(days));   // same 1..365 check
+        Map<String, List<WaitSample>> byDept = new TreeMap<>();                        // alphabetical
+        for (WaitSample s : samples) {
+            byDept.computeIfAbsent(s.department(), k -> new ArrayList<>()).add(s);
+        }
+        List<AccuracyStats> perDept = byDept.entrySet().stream()
+                .map(e -> WaitTimeAccuracyCalculator.summarize(e.getKey(), e.getValue()))
+                .toList();
+        return new WaitAccuracyResponse(days, WaitTimeAccuracyCalculator.TOLERANCE_MINUTES,
+                WaitTimeAccuracyCalculator.summarize("All departments", samples),
+                perDept,
+                WaitTimeAccuracyCalculator.distribution(samples));
     }
 }

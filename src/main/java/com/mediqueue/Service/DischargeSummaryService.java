@@ -39,6 +39,7 @@ public class DischargeSummaryService {
     private final DoctorRepository doctorRepository;
     private final PatientHealthProfileRepository profileRepository;
     private final AiGenerationLogRepository aiLogRepository;
+    private final AiGenerationLogWriter aiLogWriter;
 
     @Transactional
     public DischargeSummaryResponse saveForDoctor(User doctorUser, Long appointmentId, DischargeSummaryRequest request) {
@@ -138,7 +139,7 @@ public class DischargeSummaryService {
                                                      String output, String error, long latencyMs) {
         DischargeSummary summary = summaryRepository.findById(ctx.summaryId())
                 .orElseThrow(() -> new ResourceNotFoundException("No discharge summary yet"));
-        AiGenerationLog log = aiLogRepository.save(AiGenerationLog.builder()
+        AiGenerationLog log = aiLogWriter.save(AiGenerationLog.builder()
                 .summary(summary).requestedBy(doctorUser).model(model)
                 .promptInput(ctx.prompt().asLogText())
                 .output(output)

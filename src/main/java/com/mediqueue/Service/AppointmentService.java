@@ -321,7 +321,13 @@ public class AppointmentService {
             if (qe != null) {
                 qe.setEstimatedWaitTime(waitTimeEstimationService.predictWaitTime(
                         a.getQueuePosition() - 1+ inProgress, doctor.getAvgConsultationTime(), recent, noShowRate));
+
+                // First calculation = right after booking = what the patient was told. Freeze it.
+                if (qe.getInitialEstimatedWait() == null) {
+                    qe.setInitialEstimatedWait(qe.getEstimatedWaitTime());
+                }
             }
+
         }
         queueRepository.saveAll(entryByAppointmentId.values());
 
