@@ -33,8 +33,10 @@ public class AuthService {
     private final DoctorRepository doctorRepository;
     private final DepartmentAvailabilityCache departmentAvailabilityCache;
     private final TokenBlocklistService tokenBlocklistService;
-    @Value("${mediqueue.admin.bootstrap-secret}")
+    @Value("${mediqueue.admin.bootstrap-secret:}")
     private String bootstrapSecret;
+    @Value("${mediqueue.admin.bootstrap-only-if-no-admin:true}")
+    private boolean bootstrapOnlyIfNoAdmin;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -49,8 +51,16 @@ public class AuthService {
 
     @Transactional
     public AuthResponse registerAdminBootstrap(RegisterRequest request, String providedSecret) {
-        if (!bootstrapSecret.equals(providedSecret)) {
+        if (bootstrapSecret == null || bootstrapSecret.isBlank()) {
+            throw new UnauthorizedActionException("Bootstrap is disabled");
+        }
+        if (providedSecret == null || !java.security.MessageDigest.isEqual(
+                bootstrapSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                providedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             throw new UnauthorizedActionException("Invalid bootstrap secret");
+        }
+        if (bootstrapOnlyIfNoAdmin && userRepository.existsByRole(Role.ADMIN)) {
+            throw new ConflictException("An admin already exists. Ask an admin to create new accounts.");
         }
         User user = createUserRecord(request, Role.ADMIN);
         String token = jwtUtil.generateToken(user);

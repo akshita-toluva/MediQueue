@@ -80,4 +80,24 @@ class AuthServiceTest {
         verify(userRepository, never()).save(any());
         verify(doctorRepository, never()).save(any());
     }
+
+    @Test
+    void bootstrapRefusedOnceAnAdminExists() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "bootstrapSecret", "s3cret");
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "bootstrapOnlyIfNoAdmin", true);
+        when(userRepository.existsByRole(Role.ADMIN)).thenReturn(true);
+
+        assertThrows(com.mediqueue.exception.ConflictException.class,
+                () -> authService.registerAdminBootstrap(doctorRequest("x"), "s3cret"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void bootstrapDisabledWithoutSecret() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "bootstrapSecret", "");
+
+        assertThrows(com.mediqueue.exception.UnauthorizedActionException.class,
+                () -> authService.registerAdminBootstrap(doctorRequest("x"), "anything"));
+        verify(userRepository, never()).save(any());
+    }
 }

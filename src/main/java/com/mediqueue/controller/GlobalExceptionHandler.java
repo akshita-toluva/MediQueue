@@ -17,7 +17,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -80,10 +82,12 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "Request body is malformed or contains an invalid value"));
     }
 
+    // Last resort. The real error goes to OUR log; the client sees nothing internal (no SQL, no class names).
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
+        log.error("Unhandled error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", "Something went wrong on our side. Please try again."));
     }
 
     // 503: the AI is down, not our server. Generic text: the real reason is in ai_generation_log.

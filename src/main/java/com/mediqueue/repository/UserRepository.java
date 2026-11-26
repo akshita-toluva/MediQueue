@@ -1,5 +1,6 @@
 package com.mediqueue.repository;
 
+import com.mediqueue.entity.Role;
 import com.mediqueue.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -14,6 +15,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User,Long> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsByRole(Role role);
 
     // SELECT ... FOR UPDATE: a second health-profile save for the same patient waits here
     // until the first commits, so they can't both "create" the profile at once

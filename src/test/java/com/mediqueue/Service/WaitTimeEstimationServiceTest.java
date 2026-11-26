@@ -78,4 +78,26 @@ class WaitTimeEstimationServiceTest {
         assertEquals(Priority.NORMAL, service.classifyPriority(null));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Pain in chest and right arm",      // the Day 27 bug
+            "pains in my chest since morning",
+            "bleeding is very heavy",
+            "trouble breathing at night",
+            "unable to breathe properly",
+            "lost consciousness briefly"
+    })
+    void emergencyInAnyWordOrder_isEmergency(String symptoms) {
+        assertEquals(Priority.EMERGENCY, service.classifyPriority(symptoms));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Pain in knee",           // pain, but not chest
+            "Chest congestion",       // chest, but not pain
+            "Bleeding gums"           // bleeding, but not severe/heavy
+    })
+    void halfAMatch_staysNormal(String symptoms) {
+        assertEquals(Priority.NORMAL, service.classifyPriority(symptoms));
+    }
 }

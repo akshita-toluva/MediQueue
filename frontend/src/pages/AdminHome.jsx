@@ -16,6 +16,7 @@ export default function AdminHome() {
   const [load, setLoad] = useState(null)      // null = loading
   const [peak, setPeak] = useState(null)
   const [noShow, setNoShow] = useState(null)
+  const [accuracy, setAccuracy] = useState(null)
   const [error, setError] = useState('')
 
   // Today's load: live numbers, independent of the range filter
@@ -33,11 +34,13 @@ export default function AdminHome() {
     Promise.all([
       api.get('/api/admin/peak-hours', { params: { days } }),
       api.get('/api/admin/no-show-rates', { params: { days } }),
+      api.get('/api/admin/wait-accuracy', { params: { days } }),
     ])
-      .then(([p, n]) => {
+      .then(([p, n,w]) => {
         if (!active) return
         setPeak(p.data)
         setNoShow(n.data.map((r) => ({ ...r, ratePct: Math.round(r.rate * 1000) / 10 })))
+        setAccuracy(w.data)
       })
       .catch((err) => { if (active) setError(getErrorMessage(err)) })
     return () => { active = false }
@@ -124,6 +127,33 @@ export default function AdminHome() {
           )}
         </Card>
       </div>
+      <Card title="Wait-time accuracy"
+        subtitle={`How close the wait we told patients at booking was to their real wait, last ${days} days`}>
+        {accuracy === null ? <Loading /> : accuracy.overall.visits === 0 ? (
+          <Empty text="No completed visits with a booking-time estimate yet. Counting starts with visits booked after the Day 28 update." />
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Stat label={`Within ±${accuracy.toleranceMinutes} min`} value={`${accuracy.overall.withinTolerancePct}%`}
+                note={`${accuracy.overall.visits} completed visits`} />
+              <Stat label="Average miss" value={`${accuracy.overall.meanAbsErrorMin} min`} note="Size of the error, either direction" />
+              <Stat label="Bias" value={biasText(accuracy.overall.biasMin)} note="Positive = waited longer than told" />
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={accuracy.distribution} margin={{ top: 16 }}>
+                <CartesianGrid vertical={false} stroke={GRID} />
+                <XAxis dataKey="label" tick={{ fill: AXIS, fontSize: 12 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                <YAxis allowDecimals={false} tick={{ fill: AXIS, fontSize: 12 }} tickLine={false} axisLine={false} width={32} />
+                <Tooltip {...tooltipStyle} formatter={(v) => [v, 'Visits']} />
+                <Bar dataKey="count" fill={SERIES_1} radius={[4, 4, 0, 0]} maxBarSize={56} />
+              </BarChart>
+            </ResponsiveContainer>
+            <DataTable headers={['Department', 'Visits', `Within ±${accuracy.toleranceMinutes} min`, 'Average miss', 'Bias']}
+              rows={accuracy.byDepartment.map((d) => [d.department ?? d.label, d.visits, `${d.withinTolerancePct}%`,
+                `${d.meanAbsErrorMin} min`, biasText(d.biasMin)])} />
+          </>
+        )}
+      </Card>
     </section>
   )
 }
@@ -140,6 +170,20 @@ function Card({ title, subtitle, children }) {
 
 const Loading = () => <p className="text-sm text-muted">Loading…</p>
 const Empty = ({ text }) => <p className="text-sm text-muted">{text}</p>
+
+// Big number + label; text only, no colour meaning
+function Stat({ label, value, note }) {
+  return (
+    <div className="rounded-lg border border-line bg-paper px-4 py-3">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
+      <p className="mt-1 text-xs text-muted">{note}</p>
+    </div>
+  )
+}
+
+const biasText = (b) => (b === 0 ? 'On target' : b > 0 ? `${b} min longer` : `${Math.abs(b)} min shorter`)
+
 
 // Table view: the same numbers in text (screen readers, printing, exact values)
 function DataTable({ headers, rows }) {
